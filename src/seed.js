@@ -1,8 +1,14 @@
+require('dotenv').config();
 const bcrypt = require('bcrypt');
 const { sequelize, Employee } = require('./models');
 
 async function seed() {
-  await sequelize.sync({ force: true });
+  await sequelize.sync();
+  const count = await Employee.count();
+  if (count > 0) {
+    console.log(`Database already has ${count} employees. Skipping seed.`);
+    process.exit(0);
+  }
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash('password', salt);
   await Employee.create({ employeeId: 'E001', name: 'Samir Mulla', email: 'samir@example.com', passwordHash, role: 'admin', salary: 5000 });
