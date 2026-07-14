@@ -2758,8 +2758,14 @@ function App() {
                 ? user.documents.map((doc, index) => h('div', { key: index, className: 'doc-item' }, [
                     h('div', null, [
                       h('a', { href: doc.url, target: '_blank' }, doc.originalname),
-                      h('p', { className: 'muted' }, `${Math.round((doc.size || 0) / 1024)} KB · Uploaded ${new Date(doc.uploadedAt).toLocaleString()}`),
+                      h('p', { className: 'muted' }, [
+                        `${doc.docType || 'General'} · ${Math.round((doc.size || 0) / 1024)} KB · Uploaded ${new Date(doc.uploadedAt).toLocaleString()}`,
+                        doc.issueDate ? ` · Issued: ${new Date(doc.issueDate).toLocaleDateString()}` : '',
+                        doc.expiryDate ? ` · Expires: ${new Date(doc.expiryDate).toLocaleDateString()}` : '',
+                        doc.description ? ` · ${doc.description}` : '',
+                      ]),
                     ]),
+                    h('a', { href: doc.url, target: '_blank', className: 'btn white small', style: { textDecoration: 'none' } }, '📄 View'),
                   ]))
                 : h('p', { className: 'muted' }, 'No documents uploaded yet.'),
             ]),
