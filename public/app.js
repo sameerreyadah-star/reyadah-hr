@@ -504,6 +504,7 @@ function App() {
   const [loginState, setLoginState] = useState({ employeeId: '', password: '' });
   const [loginBusy, setLoginBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [message, setMessage] = useState('');
   const [homeActive, setHomeActive] = useState(false);
   const [companyLogoVersion, setCompanyLogoVersion] = useState(Date.now());
@@ -953,10 +954,15 @@ function App() {
         body: JSON.stringify(loginState),
       });
       setToken(data.token);
+      // Show loading animation while dashboard loads
+      setLoadingDashboard(true);
       setTab('home');
+      // Simulate minimum loading time for smooth animation
+      setTimeout(() => {
+        setLoadingDashboard(false);
+      }, 1500);
     } catch (err) {
       setMessage(err.error || 'Login failed');
-    } finally {
       setLoginBusy(false);
     }
   }
@@ -2146,6 +2152,22 @@ function App() {
     setToken(null);
     setUser(null);
     setMessage('Signed out');
+  }
+
+  // Dashboard loading animation screen
+  if (loadingDashboard) {
+    return h('div', { className: 'dashboard-loading-shell' }, [
+      h('div', { className: 'dashboard-loading-content' }, [
+        h('div', { className: 'dashboard-loading-logo' }, [
+          h('img', { src: '/images/Reyadah_Logo.png', alt: 'Logo', style: { width: '80px', height: '80px', objectFit: 'contain' } }),
+        ]),
+        h('h2', { className: 'dashboard-loading-title' }, 'Welcome to Reyadah HR'),
+        h('div', { className: 'dashboard-loading-bar' }, [
+          h('div', { className: 'dashboard-loading-fill' }),
+        ]),
+        h('p', { className: 'dashboard-loading-text' }, 'Loading your dashboard...'),
+      ]),
+    ]);
   }
 
   if (!token || !user) {
