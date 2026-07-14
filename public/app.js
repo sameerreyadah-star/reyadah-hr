@@ -445,13 +445,14 @@ function CameraCapture({ onCapture, onClose, type }) {
         h('canvas', {
           ref: canvasRef,
           className: 'camera-canvas',
-          style: { display: captured ? 'block' : 'none' },
+          style: { display: 'none' },
         }),
 
         captured ? h('img', {
           src: URL.createObjectURL(captured),
           className: 'camera-preview',
           alt: 'Captured selfie',
+          style: { width: '100%', height: '100%', objectFit: 'contain', borderRadius: 'var(--radius)' },
         }) : null,
 
         flash ? h('div', { className: 'camera-flash' }) : null,
