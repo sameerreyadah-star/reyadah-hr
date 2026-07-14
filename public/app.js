@@ -502,6 +502,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState('home');
   const [loginState, setLoginState] = useState({ employeeId: '', password: '' });
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [homeActive, setHomeActive] = useState(false);
   const [companyLogoVersion, setCompanyLogoVersion] = useState(Date.now());
@@ -940,6 +942,11 @@ function App() {
 
   async function signIn() {
     setMessage('');
+    if (!loginState.employeeId || !loginState.password) {
+      setMessage('Please enter your Employee ID and password');
+      return;
+    }
+    setLoginBusy(true);
     try {
       const data = await apiRequest('/api/auth/login', null, {
         method: 'POST',
@@ -949,6 +956,15 @@ function App() {
       setTab('home');
     } catch (err) {
       setMessage(err.error || 'Login failed');
+    } finally {
+      setLoginBusy(false);
+    }
+  }
+
+  function handleLoginKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      signIn();
     }
   }
 
@@ -2173,38 +2189,64 @@ function App() {
             h('input', {
               value: loginState.employeeId,
               onChange: (e) => setLoginState((prev) => ({ ...prev, employeeId: e.target.value })),
+              onKeyDown: handleLoginKeyDown,
               placeholder: 'Employee No',
+              autoFocus: true,
+              disabled: loginBusy,
             }),
           ]),
-          h('label', { className: 'field' }, [
+          h('label', { className: 'field password-field' }, [
             'Password',
-            h('input', {
-              type: 'password',
-              value: loginState.password,
-              onChange: (e) => setLoginState((prev) => ({ ...prev, password: e.target.value })),
-              placeholder: 'Password',
-            }),
+            h('div', { className: 'password-input-wrapper' }, [
+              h('input', {
+                type: showPassword ? 'text' : 'password',
+                value: loginState.password,
+                onChange: (e) => setLoginState((prev) => ({ ...prev, password: e.target.value })),
+                onKeyDown: handleLoginKeyDown,
+                placeholder: 'Password',
+                disabled: loginBusy,
+              }),
+              h('button', {
+                className: 'password-toggle-btn',
+                onClick: () => setShowPassword(prev => !prev),
+                type: 'button',
+                tabIndex: -1,
+                title: showPassword ? 'Hide password' : 'Show password',
+              }, showPassword ? '🙈' : '👁️'),
+            ]),
           ]),
           h('div', { className: 'auth-row' }, [
-            h('a', { className: 'link muted', href: '/uas/portal/auth/forgot' }, 'Forgot password?'),
-            h('button', { className: 'btn primary', onClick: signIn }, 'Login'),
+            h('a', { className: 'link muted', href: '#', onClick: (e) => { e.preventDefault(); setMessage('Please contact your HR administrator to reset your password.'); } }, 'Forgot password?'),
+            h('button', { className: 'btn primary', onClick: signIn, disabled: loginBusy }, 
+              loginBusy ? h('span', { className: 'login-spinner' }, [
+                h('span', { className: 'spinner-dot' }),
+                h('span', { className: 'spinner-dot' }),
+                h('span', { className: 'spinner-dot' }),
+              ]) : 'Login'
+            ),
           ]),
           h('div', { className: 'divider' }, [
-            h('span', null, 'or join us with'),
+            h('span', null, 'or sign in with'),
           ]),
           h('div', { className: 'social-row' }, [
-            h('button', { className: 'social-icon' }, 'G'),
-            h('button', { className: 'social-icon' }, 'F'),
-            h('button', { className: 'social-icon' }, 'M'),
+            h('button', { className: 'social-icon google', onClick: () => setMessage('Google login coming soon!'), title: 'Sign in with Google' }, 
+              h('span', { style: { fontSize: '20px' } }, 'G')
+            ),
+            h('button', { className: 'social-icon microsoft', onClick: () => setMessage('Microsoft login coming soon!'), title: 'Sign in with Microsoft' }, 
+              h('span', { style: { fontSize: '20px', fontWeight: 700 } }, 'M')
+            ),
+            h('button', { className: 'social-icon apple', onClick: () => setMessage('Apple login coming soon!'), title: 'Sign in with Apple' }, 
+              h('span', { style: { fontSize: '22px' } }, '')
+            ),
           ]),
           h('div', { className: 'auth-footer' }, [
             h('p', { className: 'muted' }, [
               'Need help? ',
-              h('a', { href: 'https://greythr.com/greythr-help', target: '_blank', rel: 'noopener noreferrer' }, 'Contact support'),
+              h('a', { href: '#', onClick: (e) => { e.preventDefault(); setMessage('Contact your HR administrator for assistance.'); } }, 'Contact support'),
             ]),
             h('div', { className: 'legal-links' }, [
-              h('a', { href: 'https://reyadah.me.greythr.com/v2/static-content/privacy-policy', target: '_blank', rel: 'noopener noreferrer' }, 'Privacy Policy'),
-              h('a', { href: 'https://reyadah.me.greythr.com/v2/static-content/terms-of-use', target: '_blank', rel: 'noopener noreferrer' }, 'Terms of Service'),
+              h('a', { href: '/privacy' }, 'Privacy Policy'),
+              h('a', { href: '/terms' }, 'Terms of Service'),
             ]),
           ]),
           message && h('div', { className: 'message-card' }, message),
