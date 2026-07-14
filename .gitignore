@@ -1,0 +1,8 @@
+node_modules/
+database.sqlite
+env.local
+.env
+*.log
+uploads/
+test-neon.js
+test-zkteco.js
