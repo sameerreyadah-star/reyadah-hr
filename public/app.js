@@ -3488,7 +3488,11 @@ function App() {
                   h('p', { className: 'muted' }, 'Request reimbursement for flight tickets'),
                 ]),
               ]),
-              h('label', { className: 'field' }, ['Amount (AED)', h('input', { type: 'number', value: airTicketForm.amount, onChange: function(e) { airTicketForm.amount = e.target.value; setAirTicketForm(Object.assign({}, airTicketForm)); }, placeholder: 'e.g. 1500.00' })]),
+              h('label', { className: 'field' }, ['Amount (AED) - Max 500', h('input', { type: 'number', max: 500, value: airTicketForm.amount, onChange: function(e) { 
+                const val = Math.min(500, Math.max(0, Number(e.target.value) || 0));
+                airTicketForm.amount = String(val);
+                setAirTicketForm(Object.assign({}, airTicketForm)); 
+              }, placeholder: 'e.g. 500.00' })]),
               h('label', { className: 'field' }, ['Ticket Type', h('select', { value: airTicketForm.ticketType, onChange: function(e) { airTicketForm.ticketType = e.target.value; setAirTicketForm(Object.assign({}, airTicketForm)); } }, [
                 h('option', { value: 'domestic' }, 'Domestic'),
                 h('option', { value: 'international' }, 'International'),

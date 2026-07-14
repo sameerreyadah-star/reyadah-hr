@@ -290,9 +290,14 @@ router.post('/air-tickets', auth, upload.single('invoice'), asyncHandler(async (
     return res.status(400).json({ error: 'Required fields: amount, purpose, cities, airline, ticket number, and departure date' });
   }
 
+  const parsedAmount = parseFloat(amount);
+  if (parsedAmount > 500) {
+    return res.status(400).json({ error: 'Amount cannot exceed AED 500 for air ticket reimbursement' });
+  }
+
   const airTicket = await AirTicketReimbursement.create({
     employeeId: req.user.employeeId,
-    amount: parseFloat(amount),
+    amount: parsedAmount,
     ticketType: ticketType || 'domestic',
     purpose,
     departureCity,
