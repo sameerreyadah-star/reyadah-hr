@@ -433,4 +433,62 @@ router.post('/employee/:employeeId/month/:year/:month/shifts', auth, asyncHandle
   res.json({ year: y, month: m, days: result2 });
 }));
 
+// Admin: Edit clock-in/clock-out timings for an attendance record
+router.put('/:id/edit-timing', auth, asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+
+  const att = await Attendance.findByPk(req.params.id);
+  if (!att) return res.status(404).json({ error: 'Attendance record not found' });
+
+  const { clockIn, clockOut } = req.body;
+  if (!clockIn && !clockOut) {
+    return res.status(400).json({ error: 'Provide clockIn and/or clockOut to update' });
+  }
+
+  if (clockIn !== undefined) {
+    const newClockIn = new Date(clockIn);
+    if (isNaN(newClockIn.getTime())) {
+      return res.status(400).json({ error: 'Invalid clockIn date format' });
+    }
+    att.clockIn = newClockIn;
+  }
+
+  if (clockOut !== undefined) {
+    const newClockOut = new Date(clockOut);
+    if (isNaN(newClockOut.getTime())) {
+      return res.status(400).json({ error: 'Invalid clockOut date format' });
+    }
+    att.clockOut = newClockOut;
+    att.status = att.status || 'p';
+  }
+
+  await att.save();
+  res.json({
+    ...att.toJSON(),
+    message: 'Attendance timings updated successfully',
+  });
+}));
+
+// Admin: Update paidHolidays for an employee
+router.put('/employee/:employeeId/paid-holidays', auth, asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+
+  const employee = await Employee.findOne({ where: { employeeId: req.params.employeeId } });
+  if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+  const { paidHolidays } = req.body;
+  if (paidHolidays === undefined || paidHolidays < 0) {
+    return res.status(400).json({ error: 'paidHolidays must be a non-negative number' });
+  }
+
+  employee.paidHolidays = parseInt(paidHolidays, 10) || 0;
+  await employee.save();
+
+  res.json({
+    message: 'Paid holidays updated successfully',
+    employeeId: employee.employeeId,
+    paidHolidays: employee.paidHolidays,
+  });
+}));
+
 module.exports = router;

@@ -568,8 +568,8 @@ function App() {
   const [bulkPhBusy, setBulkPhBusy] = useState(false);
   const [bulkAnnualLeaveFile, setBulkAnnualLeaveFile] = useState(null);
   const [bulkAnnualLeaveBusy, setBulkAnnualLeaveBusy] = useState(false);
-  const [documentMeta, setDocumentMeta] = useState({ docType: '', description: '', issueDate: '' });
-  const [employeeDocMeta, setEmployeeDocMeta] = useState({ docType: '', description: '', issueDate: '' });
+  const [documentMeta, setDocumentMeta] = useState({ docType: '', description: '', issueDate: '', expiryDate: '' });
+  const [employeeDocMeta, setEmployeeDocMeta] = useState({ docType: '', description: '', issueDate: '', expiryDate: '' });
   const [employeeDocFile, setEmployeeDocFile] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [leaveBalances, setLeaveBalances] = useState([]);
@@ -1033,10 +1033,11 @@ function App() {
     form.append('docType', documentMeta.docType || 'General');
     form.append('description', documentMeta.description || '');
     form.append('issueDate', documentMeta.issueDate || '');
+    form.append('expiryDate', documentMeta.expiryDate || '');
     try {
       await apiRequest('/api/documents/upload', token, { method: 'POST', body: form });
       await loadDocs();
-      setDocumentMeta({ docType: '', description: '', issueDate: '' });
+      setDocumentMeta({ docType: '', description: '', issueDate: '', expiryDate: '' });
       setMessage('Document uploaded successfully');
     } catch (err) {
       setMessage(err.error || 'Upload failed');
@@ -1050,10 +1051,11 @@ function App() {
     form.append('docType', employeeDocMeta.docType || 'General');
     form.append('description', employeeDocMeta.description || '');
     form.append('issueDate', employeeDocMeta.issueDate || '');
+    form.append('expiryDate', employeeDocMeta.expiryDate || '');
     try {
       await apiRequest(`/api/employees/${selectedEmployeeId}/documents`, token, { method: 'POST', body: form });
       setEmployeeDocFile(null);
-      setEmployeeDocMeta({ docType: '', description: '', issueDate: '' });
+      setEmployeeDocMeta({ docType: '', description: '', issueDate: '', expiryDate: '' });
       await loadEmployeeDetails(selectedEmployeeId);
       setMessage('Document added to employee profile');
     } catch (err) {
@@ -3238,6 +3240,14 @@ function App() {
               }),
             ]),
             h('label', { className: 'field' }, [
+              'Expiry date',
+              h('input', {
+                type: 'date',
+                value: documentMeta.expiryDate,
+                onChange: (event) => setDocumentMeta((prev) => ({ ...prev, expiryDate: event.target.value })),
+              }),
+            ]),
+            h('label', { className: 'field' }, [
               'Description',
               h('input', {
                 type: 'text',
@@ -3254,7 +3264,7 @@ function App() {
           docs.length ? docs.map((doc, index) => h('div', { key: index, className: 'doc-item' }, [
             h('div', null, [
               h('a', { href: doc.url, target: '_blank' }, doc.originalname),
-              h('p', { className: 'muted' }, `${doc.docType || 'General'} · ${doc.description || 'No details'} · Uploaded ${new Date(doc.uploadedAt).toLocaleDateString()}`),
+              h('p', { className: 'muted' }, `${doc.docType || 'General'} · ${doc.description || 'No details'} · Uploaded ${new Date(doc.uploadedAt).toLocaleDateString()}${doc.expiryDate ? ` · Expires: ${new Date(doc.expiryDate).toLocaleDateString()}` : ''}${doc.issueDate ? ` · Issued: ${new Date(doc.issueDate).toLocaleDateString()}` : ''}`),
             ]),
           ])) : h('p', { className: 'muted' }, 'No documents uploaded yet.'),
         ]),

@@ -29,7 +29,7 @@ const upload = multer({ storage });
 router.post('/upload', auth, upload.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'file required' });
   const emp = req.user;
-  const { docType, description, issueDate } = req.body;
+  const { docType, description, issueDate, expiryDate } = req.body;
   const docs = emp.documents || [];
   const entry = {
     id: Date.now(),
@@ -41,6 +41,7 @@ router.post('/upload', auth, upload.single('file'), asyncHandler(async (req, res
     docType: docType || 'General',
     description: description || '',
     issueDate: issueDate ? new Date(issueDate) : null,
+    expiryDate: expiryDate ? new Date(expiryDate) : null,
   };
   docs.push(entry);
   await emp.update({ documents: docs });

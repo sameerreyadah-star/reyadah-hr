@@ -20,10 +20,12 @@ const holidaysRoutes = require('./routes/holidays');
 const auditLogsRoutes = require('./routes/auditLogs');
 const eosRoutes = require('./routes/eos');
 const employeesManagementRoutes = require('./routes/employeesManagement');
+const workTimingRoutes = require('./routes/workTiming');
 
 const syncService = require('./services/syncService');
 const zktecoService = require('./services/zktecoService');
-const { Employee } = require('./models');
+const { Employee, Attendance } = require('./models');
+const fs = require('fs');
 
 // Schedule end-of-month annual leave increment (adds 2 days to every employee)
 cron.schedule('59 23 28-31 * *', async () => {
@@ -53,6 +55,66 @@ cron.schedule('59 23 28-31 * *', async () => {
 
 console.log('[Cron] End-of-month auto annual leave increment scheduler started');
 
+// Daily PH auto-update: Check if employees worked 9+ hours on a public holiday
+const holidaysFilePath = path.join(__dirname, '..', 'data', 'holidays.json');
+async function readHolidays() {
+  try {
+    if (!fs.existsSync(holidaysFilePath)) return [];
+    const raw = fs.readFileSync(holidaysFilePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('[PH Auto] Error reading holidays:', err.message);
+    return [];
+  }
+}
+
+cron.schedule('0 2 * * *', async () => {
+  try {
+    console.log('[PH Auto] Checking for public holiday attendance...');
+    const holidays = await readHolidays();
+    if (!holidays.length) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayHolidays = holidays.filter(h => h.date === today);
+    if (!todayHolidays.length) return;
+
+    console.log(`[PH Auto] Today is a public holiday: ${todayHolidays.map(h => h.name).join(', ')}`);
+
+    // Find all employees who worked today (clocked in)
+    const todayAttendance = await Attendance.findAll({
+      where: { date: today },
+      include: [{ model: Employee, attributes: ['id', 'employeeId', 'name', 'paidHolidays'] }],
+    });
+
+    let updatedCount = 0;
+    for (const att of todayAttendance) {
+      if (!att.clockIn || !att.clockOut) continue;
+      
+      // Calculate working hours
+      const clockIn = new Date(att.clockIn).getTime();
+      const clockOut = new Date(att.clockOut).getTime();
+      const hoursWorked = (clockOut - clockIn) / (1000 * 60 * 60);
+      
+      if (hoursWorked >= 9) {
+        const employee = att.Employee;
+        if (employee) {
+          const currentPH = Number(employee.paidHolidays) || 0;
+          employee.paidHolidays = currentPH + 1;
+          await employee.save();
+          att.status = 'p';
+          await att.save();
+          updatedCount++;
+          console.log(`[PH Auto] ${employee.name} (${employee.employeeId}) worked ${hoursWorked.toFixed(1)}h on PH - paidHolidays: ${currentPH + 1}`);
+        }
+      }
+    }
+    console.log(`[PH Auto] Updated paidHolidays for ${updatedCount} employees`);
+  } catch (err) {
+    console.error('[PH Auto] Error:', err.message);
+  }
+});
+console.log('[Cron] Daily PH auto-update scheduler started');
+
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -73,6 +135,7 @@ app.use('/api/holidays', holidaysRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 app.use('/api/eos', eosRoutes);
 app.use('/api/employees-management', employeesManagementRoutes);
+app.use('/api/work-timings', workTimingRoutes);
 
 // error handling
 app.use((err, req, res, next) => {

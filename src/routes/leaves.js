@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
-const { LeaveRequest, Employee } = require('../models');
+const { LeaveRequest, Employee, AirTicketReimbursement } = require('../models');
 
 const DEFAULT_ANNUAL_LEAVE_DAYS = Number(process.env.DEFAULT_ANNUAL_LEAVE_DAYS || 30);
 const DEFAULT_PH_LEAVE_DAYS = Number(process.env.DEFAULT_PH_LEAVE_DAYS || 10);
@@ -154,6 +154,38 @@ router.get('/balances', auth, asyncHandler(async (req, res) => {
   });
 }));
 
+// Auto-create Air Ticket Reimbursement (AED 500) when annual leave is approved
+async function autoCreateAirTicketReimbursement(leave, employee) {
+  try {
+    const leaveType = String(leave.leaveType || '').trim().toLowerCase();
+    if (!leaveType.includes('annual')) return; // Only for annual leave
+
+    // Check if already created for this leave
+    const existing = await AirTicketReimbursement.findOne({
+      where: { employeeId: employee.employeeId, purpose: `Annual Leave ${leave.id}` }
+    });
+    if (existing) return;
+
+    await AirTicketReimbursement.create({
+      employeeId: employee.employeeId,
+      amount: 500,
+      ticketType: 'domestic',
+      purpose: `Annual Leave ${leave.id}`,
+      departureCity: 'UAE',
+      destinationCity: 'Home Country',
+      airline: 'Auto',
+      ticketNumber: `AUTO-${Date.now()}`,
+      departureDate: leave.startDate,
+      returnDate: leave.endDate,
+      status: 'approved',
+      approvedAt: new Date(),
+    });
+    console.log(`[Auto AirTicket] Created AED 500 reimbursement for ${employee.employeeId} (Annual Leave #${leave.id})`);
+  } catch (err) {
+    console.error('[Auto AirTicket] Error creating reimbursement:', err.message);
+  }
+}
+
 router.put('/:id/manager', auth, asyncHandler(async (req, res) => {
   if (req.user.role !== 'restaurant-manager' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'forbidden' });
@@ -204,6 +236,15 @@ router.put('/:id/company', auth, asyncHandler(async (req, res) => {
   };
   leave.status = action === 'approve' ? 'approved' : 'rejected';
   await leave.save();
+
+  // Auto-create Air Ticket Reimbursement if annual leave was approved
+  if (leave.status === 'approved') {
+    const employee = leave.Employee || await Employee.findByPk(leave.employeeId);
+    if (employee) {
+      autoCreateAirTicketReimbursement(leave, employee);
+    }
+  }
+
   res.json(serializeLeave(leave));
 }));
 
@@ -328,6 +369,12 @@ router.post('/admin', auth, asyncHandler(async (req, res) => {
   };
 
   const leave = await LeaveRequest.create(leaveData);
+
+  // Auto-create Air Ticket Reimbursement if annual leave was auto-approved
+  if (shouldAutoApprove && String(leaveType || '').trim().toLowerCase().includes('annual')) {
+    autoCreateAirTicketReimbursement(leave, employee);
+  }
+
   res.json(serializeLeave(leave));
 }));
 
