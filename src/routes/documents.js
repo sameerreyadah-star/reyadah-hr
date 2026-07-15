@@ -6,37 +6,40 @@ const fs = require('fs');
 const auth = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const { Employee } = require('../models');
+const cloudinaryUpload = require('../services/cloudinaryUpload');
 
-const UPLOAD_ROOT = path.join(__dirname, '..', '..', 'uploads');
-if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const empId = req.user.employeeId;
-    const dir = path.join(UPLOAD_ROOT, empId);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ts = Date.now();
-    const safe = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    cb(null, `${ts}_${safe}`);
-  }
+// Use memory storage so we can upload the buffer to Cloudinary
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit for documents
 });
-
-const upload = multer({ storage });
 
 router.post('/upload', auth, upload.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'file required' });
   const emp = req.user;
   const { docType, description, issueDate, expiryDate } = req.body;
-  const docs = emp.documents || [];
+
+  // Determine resource type based on file mimetype
+  const isImage = req.file.mimetype.startsWith('image/');
+  const resourceType = isImage ? 'image' : 'raw';
+
+  // Upload to Cloudinary
+  const cloudResult = await cloudinaryUpload.uploadBuffer(req.file.buffer, {
+    folder: `reyadah/documents/${emp.employeeId}`,
+    publicId: `${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`,
+    resourceType,
+  });
+
+  // Create a NEW array to ensure Sequelize detects the change (JSON field)
+  const docs = [...(emp.documents || [])];
   const entry = {
     id: Date.now(),
-    filename: req.file.filename,
+    filename: req.file.originalname,
     originalname: req.file.originalname,
-    size: req.file.size,
-    url: `/uploads/${emp.employeeId}/${req.file.filename}`,
+    size: cloudResult.bytes,
+    url: cloudResult.secureUrl,
+    publicId: cloudResult.publicId,
     uploadedAt: new Date(),
     docType: docType || 'General',
     description: description || '',

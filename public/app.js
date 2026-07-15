@@ -5907,7 +5907,15 @@ function App() {
                 h('h3', null, 'Shift roster'),
                 h('div', { className: 'doc-item shift-item' }, [
                   h('div', null, [h('strong', null, selectedEmployeeDetails.shiftRoster?.shiftName || 'General shift'), h('p', { className: 'muted' }, `From ${selectedEmployeeDetails.shiftRoster?.startTime || '09:00'} to ${selectedEmployeeDetails.shiftRoster?.endTime || '18:00'}`), h('p', { className: 'muted' }, selectedEmployeeDetails.shiftRoster?.notes || 'No shift notes.')]),
-                  h('button', { className: 'btn secondary small', onClick: () => { setAdminPage('assignShift'); setTab('admin'); } }, 'Edit Shift'),
+              h('button', { className: 'btn secondary small', onClick: () => { setAdminPage('assignShift'); setTab('admin'); } }, 'Edit Shift'),
+                        h('button', { className: 'btn red small', onClick: async () => {
+                          if (!window.confirm('Remove shift for ' + selectedEmployeeDetails.name + '?')) return;
+                          try {
+                            await apiRequest('/api/employees/' + selectedEmployeeDetails.employeeId + '/shift', token, { method: 'PUT', body: JSON.stringify({ shiftRoster: {} }) });
+                            await loadEmployeeDetails(selectedEmployeeDetails.employeeId);
+                            setMessage('Shift removed successfully');
+                          } catch (err) { setMessage(err.error || 'Failed to remove shift'); }
+                        } }, 'Remove Shift'),
                 ]),
               ]),
               h('div', { className: 'card' }, [
@@ -5988,9 +5996,32 @@ function App() {
                     ])
                   : h('p', { className: 'muted' }, 'Only managers can edit attendance.'),
               ]),
-              h('div', { className: 'card' }, [h('h3', null, 'Assets'),
+              h('div', { className: 'card' }, [
+                h('h3', null, 'Assets'),
                 selectedEmployeeDetails.assets && selectedEmployeeDetails.assets.length
-                  ? selectedEmployeeDetails.assets.map((asset) => h('div', { key: asset.id, className: 'doc-item asset-item' }, [h('div', null, [h('strong', null, `${asset.name} (${asset.assetType || asset.assetTag || 'Asset'})`), h('p', { className: 'muted' }, `SN: ${asset.serialNumber || '—'} · Model: ${asset.model || '—'}`), h('p', { className: 'muted' }, asset.description || 'No description provided.')]), h('div', { className: 'asset-meta' }, [h('p', { className: 'muted' }, `Assigned ${new Date(asset.assignedAt).toLocaleString()}`), h('p', { className: 'muted' }, `Status: ${asset.status}`)])]))
+                  ? selectedEmployeeDetails.assets.map((asset) => {
+                      const historyCount = (asset.assignmentHistory || []).length;
+                      return h('div', { key: asset.id, className: 'doc-item asset-item' }, [
+                        h('div', null, [
+                          h('strong', null, `${asset.name} (${asset.assetType || asset.assetTag || 'Asset'})`),
+                          h('p', { className: 'muted' }, `SN: ${asset.serialNumber || '—'} · Model: ${asset.model || '—'}`),
+                          h('p', { className: 'muted' }, asset.description || 'No description provided.'),
+                          h('p', { className: 'muted', style: { fontSize: '11px', marginTop: '4px', color: 'var(--accent)' } },
+                            asset.assignedBy ? `Assigned by: ${asset.assignedBy} (${asset.assignedById}) · ${asset.assignedAt ? new Date(asset.assignedAt).toLocaleString() : ''}` : ''
+                          ),
+                          historyCount > 0 && h('div', { style: { marginTop: '6px', fontSize: '11px', borderTop: '1px dashed var(--border)', paddingTop: '4px' } }, [
+                            h('span', { style: { fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '2px' } }, 'Assignment History:'),
+                            asset.assignmentHistory.map((h, idx) => h('p', { key: idx, style: { margin: '1px 0', color: 'var(--text-muted)' } },
+                              `${h.action} by ${h.by} (${h.byId}) at ${new Date(h.at).toLocaleString()}${h.notes ? ' · ' + h.notes : ''}`
+                            )),
+                          ]),
+                        ]),
+                        h('div', { className: 'asset-meta' }, [
+                          h('p', { className: 'muted' }, `Status: ${asset.status}`),
+                          asset.assignedAt && h('p', { className: 'muted' }, `Assigned ${new Date(asset.assignedAt).toLocaleString()}`),
+                        ]),
+                      ]);
+                    })
                   : h('p', { className: 'muted' }, 'No assets assigned.'),
               ]),
             ]),

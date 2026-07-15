@@ -12,6 +12,7 @@ const auth = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const { Employee, Attendance, Payroll } = require('../models');
 const bcrypt = require('bcrypt');
+const cloudinaryUpload = require('../services/cloudinaryUpload');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -60,7 +61,12 @@ const storage = multer.diskStorage({
     cb(null, `${prefix}${Date.now()}_${safe}`);
   }
 });
+
+// Memory storage for Cloudinary document uploads (admin)
+const memoryStorage = multer.memoryStorage();
+
 const upload = multer({ storage });
+const uploadMemory = multer({ storage: memoryStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']);
 
 function isSupportedImageFile(file) {
@@ -978,14 +984,15 @@ router.get('/me', auth, asyncHandler(async (req, res) => {
 
 // assign asset to employee
 router.post('/:employeeId/assets', auth, asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+  if (!['admin', 'restaurant-manager', 'company-manager'].includes(req.user.role)) return res.status(403).json({ error: 'forbidden' });
   const employee = await Employee.findOne({ where: { employeeId: req.params.employeeId } });
   if (!employee) return res.status(404).json({ error: 'employee not found' });
 
   const { name, serialNumber, assetType, model, description, status, assignedAt } = req.body;
   if (!name || !serialNumber || !assetType) return res.status(400).json({ error: 'asset name, serial number, and type are required' });
 
-  const assets = employee.assets || [];
+  // Create a NEW array to ensure Sequelize detects the change (JSON field)
+  const assets = [...(employee.assets || [])];
   const newAsset = {
     id: Date.now(),
     name,
@@ -996,6 +1003,16 @@ router.post('/:employeeId/assets', auth, asyncHandler(async (req, res) => {
     status: status || 'assigned',
     assignedAt: assignedAt ? new Date(assignedAt) : new Date(),
     createdAt: new Date(),
+    // Assignment history tracking
+    assignedBy: req.user.name || req.user.employeeId || 'Unknown',
+    assignedById: req.user.employeeId || 'Unknown',
+    assignmentHistory: [{
+      action: 'assigned',
+      by: req.user.name || req.user.employeeId || 'Unknown',
+      byId: req.user.employeeId || 'Unknown',
+      at: new Date(),
+      notes: description || '',
+    }],
   };
 
   assets.push(newAsset);
@@ -1003,29 +1020,73 @@ router.post('/:employeeId/assets', auth, asyncHandler(async (req, res) => {
   res.json(newAsset);
 }));
 
-// add a document for an employee
-router.post('/:employeeId/documents', auth, upload.single('file'), asyncHandler(async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+// ==================== FIXED: ADMIN DOCUMENT UPLOAD ====================
+// add a document for an employee (now uses Cloudinary)
+router.post('/:employeeId/documents', auth, uploadMemory.single('file'), asyncHandler(async (req, res) => {
+  if (!['admin', 'restaurant-manager', 'company-manager'].includes(req.user.role)) return res.status(403).json({ error: 'forbidden' });
   const employee = await Employee.findOne({ where: { employeeId: req.params.employeeId } });
   if (!employee) return res.status(404).json({ error: 'employee not found' });
   if (!req.file) return res.status(400).json({ error: 'file required' });
 
-  const { docType, description, issueDate } = req.body;
-  const docs = employee.documents || [];
-  const entry = {
-    id: Date.now(),
-    filename: req.file.filename,
-    originalname: req.file.originalname,
-    size: req.file.size,
-    url: `/uploads/${employee.employeeId}/${req.file.filename}`,
-    uploadedAt: new Date(),
-    docType: docType || 'General',
-    description: description || '',
-    issueDate: issueDate ? new Date(issueDate) : null,
-  };
-  docs.push(entry);
-  await employee.update({ documents: docs });
-  res.json(entry);
+  const { docType, description, issueDate, expiryDate } = req.body;
+
+  // Upload to Cloudinary
+  try {
+    const isImage = req.file.mimetype.startsWith('image/');
+    const resourceType = isImage ? 'image' : 'raw';
+
+    const cloudResult = await cloudinaryUpload.uploadBuffer(req.file.buffer, {
+      folder: `reyadah/documents/${employee.employeeId}`,
+      publicId: `${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`,
+      resourceType,
+    });
+
+    // Create a NEW array to ensure Sequelize detects the change (JSON field)
+    const docs = [...(employee.documents || [])];
+    const entry = {
+      id: Date.now(),
+      filename: req.file.originalname,
+      originalname: req.file.originalname,
+      size: cloudResult.bytes,
+      url: cloudResult.secureUrl,
+      publicId: cloudResult.publicId,
+      uploadedAt: new Date(),
+      docType: docType || 'General',
+      description: description || '',
+      issueDate: issueDate ? new Date(issueDate) : null,
+      expiryDate: expiryDate ? new Date(expiryDate) : null,
+    };
+    docs.push(entry);
+    await employee.update({ documents: docs });
+    res.json(entry);
+  } catch (cloudErr) {
+    console.error('Cloudinary upload failed, falling back to local storage:', cloudErr.message);
+    // Fallback to local storage if Cloudinary fails
+    const localDir = path.join(UPLOAD_ROOT, employee.employeeId);
+    if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
+    const safeName = req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const filename = `doc_${Date.now()}_${safeName}`;
+    const filePath = path.join(localDir, filename);
+    fs.writeFileSync(filePath, req.file.buffer);
+
+    // Create a NEW array to ensure Sequelize detects the change (JSON field)
+    const docs = [...(employee.documents || [])];
+    const entry = {
+      id: Date.now(),
+      filename,
+      originalname: req.file.originalname,
+      size: req.file.size,
+      url: `/uploads/${employee.employeeId}/${filename}`,
+      uploadedAt: new Date(),
+      docType: docType || 'General',
+      description: description || '',
+      issueDate: issueDate ? new Date(issueDate) : null,
+      expiryDate: expiryDate ? new Date(expiryDate) : null,
+    };
+    docs.push(entry);
+    await employee.update({ documents: docs });
+    res.json(entry);
+  }
 }));
 
 router.put('/:employeeId/shift', auth, asyncHandler(async (req, res) => {

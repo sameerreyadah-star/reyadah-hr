@@ -142,24 +142,38 @@ router.post('/assets', auth, uploadInvoice.single('invoice'), asyncHandler(async
     createdAt: new Date(),
   };
 
+  // Add assignment tracking data
+  newAsset.assignedBy = req.user.name || req.user.employeeId || 'Unknown';
+  newAsset.assignedById = req.user.employeeId || 'Unknown';
+  newAsset.assignmentHistory = [{
+    action: assignToEmployeeId ? 'assigned' : 'created',
+    by: req.user.name || req.user.employeeId || 'Unknown',
+    byId: req.user.employeeId || 'Unknown',
+    at: new Date(),
+    notes: description || '',
+  }];
+
   // If assigning to an employee
   if (assignToEmployeeId) {
     const employee = await Employee.findOne({ where: { employeeId: assignToEmployeeId } });
     if (employee) {
       newAsset.status = 'assigned';
       newAsset.assignedAt = new Date();
-      const empAssets = employee.assets || [];
+      newAsset.employeeId = employee.employeeId;
+      newAsset.employeeName = employee.name;
+      // Create a NEW array to ensure Sequelize detects the change
+      const empAssets = [...(employee.assets || [])];
       empAssets.push(newAsset);
       await employee.update({ assets: empAssets });
-      return res.status(201).json({ ...newAsset, employeeId: employee.employeeId, employeeName: employee.name });
+      return res.status(201).json(newAsset);
     }
   }
 
   // Store as unassigned in a special "company" bucket
-  // We'll use admin's first admin employee as the holder for unassigned assets
   const adminEmp = await Employee.findOne({ where: { role: 'admin' }, order: [['createdAt', 'ASC']] });
   if (adminEmp) {
-    const companyAssets = adminEmp.assets || [];
+    // Create a NEW array to ensure Sequelize detects the change
+    const companyAssets = [...(adminEmp.assets || [])];
     companyAssets.push({ ...newAsset, employeeId: '__unassigned__' });
     await adminEmp.update({ assets: companyAssets });
   }
@@ -234,6 +248,34 @@ router.put('/assets/:assetId', auth, uploadInvoice.single('invoice'), asyncHandl
   updatedAssets.push(updated);
   await sourceEmployee.update({ assets: updatedAssets });
   res.json(updated);
+}));
+
+/**
+ * GET /api/company/assets/available
+ * Returns all available (unassigned) assets for dropdown selection
+ */
+router.get('/assets/available', auth, asyncHandler(async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+
+  const employees = await Employee.findAll({
+    attributes: ['id', 'employeeId', 'name', 'assets'],
+  });
+
+  const availableAssets = [];
+  employees.forEach(emp => {
+    const empAssets = emp.assets || [];
+    empAssets.forEach(asset => {
+      if (asset.status === 'available' || asset.employeeId === '__unassigned__' || asset.employeeId === undefined) {
+        availableAssets.push({
+          ...asset,
+          employeeId: asset.employeeId || '__unassigned__',
+          employeeName: asset.employeeName || 'Unassigned',
+        });
+      }
+    });
+  });
+
+  res.json(availableAssets);
 }));
 
 /**

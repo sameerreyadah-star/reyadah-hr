@@ -2,7 +2,7 @@
  * Face Verification Service
  * 
  * This service handles:
- * 1. Storing selfie photos taken during clock-in/out
+ * 1. Storing selfie photos taken during clock-in/out (Cloudinary or local disk)
  * 2. Comparing selfies with stored employee photos
  * 3. Basic liveness detection (blur, brightness checks)
  * 
@@ -13,6 +13,7 @@
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
+const cloudinaryUpload = require('./cloudinaryUpload');
 
 // Minimum acceptable image quality thresholds
 const MIN_BRIGHTNESS = 10;
@@ -20,27 +21,47 @@ const MAX_BRIGHTNESS = 250;
 const MIN_VARIANCE = 8; // Lowered from 15 - was too strict
 
 /**
- * Save a selfie image from buffer to disk
+ * Save a selfie image to Cloudinary (preferred) or local disk as fallback
  * @param {Buffer} imageBuffer - Raw image data
  * @param {string} employeeId - Employee ID for filename
  * @param {string} type - 'clockIn' or 'clockOut'
- * @returns {Promise<string>} Relative path to saved image
+ * @returns {Promise<string>} URL/path to saved image
  */
 async function saveSelfie(imageBuffer, employeeId, type) {
+  const timestamp = Date.now();
+  const filename = `${employeeId}_${type}_${timestamp}.jpg`;
+
+  // Process image with sharp
+  const processedBuffer = await sharp(imageBuffer)
+    .jpeg({ quality: 80, mozjpeg: true })
+    .resize(640, 480, { fit: 'inside', withoutEnlargement: true })
+    .toBuffer();
+
+  // Try Cloudinary first
+  const hasCloudConfig = process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_CLOUD_NAME !== 'your_cloud_name_here';
+
+  if (hasCloudConfig) {
+    try {
+      const result = await cloudinaryUpload.uploadBuffer(processedBuffer, {
+        folder: `reyadah/selfies/${employeeId}`,
+        publicId: `${type}_${timestamp}`,
+        resourceType: 'image',
+      });
+      return result.secureUrl;
+    } catch (err) {
+      console.warn('[FaceVerification] Cloudinary upload failed, falling back to local disk:', err.message);
+    }
+  }
+
+  // Fallback: save to local disk
   const selfiesDir = path.join(__dirname, '..', '..', 'uploads', 'selfies');
   if (!fs.existsSync(selfiesDir)) {
     fs.mkdirSync(selfiesDir, { recursive: true });
   }
 
-  const timestamp = Date.now();
-  const filename = `${employeeId}_${type}_${timestamp}.jpg`;
   const filepath = path.join(selfiesDir, filename);
-
-  // Process and save as JPEG with reasonable quality
-  await sharp(imageBuffer)
-    .jpeg({ quality: 80, mozjpeg: true })
-    .resize(640, 480, { fit: 'inside', withoutEnlargement: true })
-    .toFile(filepath);
+  await sharp(processedBuffer).toFile(filepath);
 
   return `/uploads/selfies/${filename}`;
 }
@@ -139,31 +160,30 @@ async function analyzeImageQuality(imageBuffer) {
 
 /**
  * Compare two face images for similarity
- * Uses a multi-resolution comparison approach for better accuracy
- * @param {string} imagePath1 - Path to first image
- * @param {string} imagePath2 - Path to second image  
+ * Works with either file paths or buffers
+ * @param {string|Buffer} input1 - Path to first image OR buffer of first image
+ * @param {string|Buffer} input2 - Path to second image OR buffer of second image  
  * @returns {Promise<{match: boolean, similarity: number}>}
  */
-async function compareFaces(imagePath1, imagePath2) {
+async function compareFaces(input1, input2) {
   try {
-    // Normalize both images before comparison: resize to same size, equalize
     const compareSize = 64; // Using 64x64 for better balance of speed and accuracy
     
-    const [pixels1, pixels2] = await Promise.all([
-      sharp(imagePath1)
+    // Load and normalize both images
+    async function loadAndNormalize(input) {
+      let pipeline = sharp(input);
+      // If input is a string (file path), read from disk; if buffer, use directly
+      if (typeof input === 'string') {
+        pipeline = sharp(input);
+      }
+      
+      const pixels = await pipeline
         .grayscale()
         .resize(compareSize, compareSize, { fit: 'fill' })
         .raw()
-        .toBuffer(),
-      sharp(imagePath2)
-        .grayscale()
-        .resize(compareSize, compareSize, { fit: 'fill' })
-        .raw()
-        .toBuffer(),
-    ]);
+        .toBuffer();
 
-    // Normalize pixel values (contrast stretching) to reduce lighting sensitivity
-    function normalizePixels(pixels) {
+      // Normalize pixel values (contrast stretching)
       let min = 255, max = 0;
       for (let i = 0; i < pixels.length; i++) {
         if (pixels[i] < min) min = pixels[i];
@@ -178,11 +198,12 @@ async function compareFaces(imagePath1, imagePath2) {
       return normalized;
     }
 
-    const norm1 = normalizePixels(pixels1);
-    const norm2 = normalizePixels(pixels2);
+    const [norm1, norm2] = await Promise.all([
+      loadAndNormalize(input1),
+      loadAndNormalize(input2),
+    ]);
 
     // Calculate Structural Similarity-like measure
-    // Mean and variance for each image
     let mean1 = 0, mean2 = 0;
     for (let i = 0; i < norm1.length; i++) {
       mean1 += norm1[i];
@@ -226,15 +247,12 @@ async function compareFaces(imagePath1, imagePath2) {
     }
 
     // Combine SSIM and NCC for more robust comparison
-    // SSIM ranges 0-1, NCC ranges 0-1, combine with more weight on NCC
     const combined = (ssim * 0.4 + ncc * 0.6);
     
     // Convert to similarity percentage
     const similarity = Math.round(combined * 100);
 
     // More lenient matching threshold
-    // If similarity is above 35%, consider it a potential match
-    // This accounts for different lighting, angles, and expressions
     const match = similarity > 35;
 
     return {
@@ -255,21 +273,34 @@ async function compareFaces(imagePath1, imagePath2) {
 }
 
 /**
- * Get the stored employee face photo path (for attendance verification)
+ * Get the stored employee face photo path or buffer for attendance verification
  * Falls back to profile photo if face photo is not available
  * @param {object} employee - Employee model instance
- * @returns {string|null} Full file path or null
+ * @returns {string|null} Full file path or null (returns path for local files, null for cloud URLs)
  */
 function getEmployeePhotoPath(employee) {
   // First check dedicated face photo
   if (employee && employee.facePhotoUrl) {
+    // If it's a Cloudinary URL, we can't compare locally, return null
+    if (employee.facePhotoUrl.startsWith('http')) return null;
     const facePath = path.join(__dirname, '..', '..', employee.facePhotoUrl);
     if (fs.existsSync(facePath)) return facePath;
   }
   // Fall back to profile photo
   if (!employee || !employee.photoUrl) return null;
+  // If it's a Cloudinary URL, we can't compare locally
+  if (employee.photoUrl.startsWith('http')) return null;
   const photoPath = path.join(__dirname, '..', '..', employee.photoUrl);
   return fs.existsSync(photoPath) ? photoPath : null;
+}
+
+/**
+ * Check if face comparison can be done (i.e., employee has a local photo)
+ * @param {object} employee - Employee model instance
+ * @returns {boolean}
+ */
+function canCompareFaces(employee) {
+  return getEmployeePhotoPath(employee) !== null;
 }
 
 module.exports = {
@@ -277,4 +308,5 @@ module.exports = {
   analyzeImageQuality,
   compareFaces,
   getEmployeePhotoPath,
+  canCompareFaces,
 };
