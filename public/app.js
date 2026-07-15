@@ -2769,21 +2769,21 @@ function App() {
                   ]))
                 : h('p', { className: 'muted' }, 'No documents uploaded yet.'),
             ]),
-            h('div', { className: 'section' }, [
-              h('h3', null, 'Assets'),
-              user.assets && user.assets.length
-                ? user.assets.map((asset) => h('div', { key: asset.id, className: 'doc-item asset-item' }, [
-                    h('div', null, [
-                      h('strong', null, `${asset.name} (${asset.assetTag})`),
-                      h('p', { className: 'muted' }, asset.description || 'No description provided.'),
-                    ]),
-                    h('div', { className: 'asset-meta' }, [
-                      h('p', { className: 'muted' }, `Assigned ${new Date(asset.assignedAt).toLocaleString()}`),
-                      h('p', { className: 'muted' }, `Status: ${asset.status}`),
-                    ]),
-                  ]))
-                : h('p', { className: 'muted' }, 'No assets assigned.'),
-            ]),
+                      h('div', { className: 'section' }, [
+                        h('h3', null, 'My Assets'),
+                        user.assets && user.assets.length
+                          ? user.assets.map((asset) => h('div', { key: asset.id, className: 'doc-item asset-item' }, [
+                              h('div', null, [
+                                h('strong', null, `${asset.name} (${asset.assetType || asset.assetTag || 'Asset'})`),
+                                h('p', { className: 'muted' }, `${asset.serialNumber ? 'SN: ' + asset.serialNumber + ' · ' : ''}${asset.description || ''}`),
+                              ]),
+                              h('div', { className: 'asset-meta' }, [
+                                h('p', { className: 'muted' }, `Assigned ${new Date(asset.assignedAt).toLocaleString()}`),
+                                h('p', { className: 'muted' }, `Status: ${asset.status}`),
+                              ]),
+                            ]))
+                          : h('p', { className: 'muted' }, 'No assets assigned.'),
+                      ]),
             h('div', { className: 'section' }, [
               h('h3', null, 'Attendance'),
               attendanceRecords.length
