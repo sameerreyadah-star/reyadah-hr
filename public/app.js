@@ -2177,29 +2177,34 @@ function App() {
     return h('div', { className: 'login-shell' }, [
       h('div', { className: 'login-grid' }, [
         h('section', { className: 'login-side' }, [
+          h('span', { className: 'company-badge' }, '🏢 A K S Reyadah Trading L.L.C'),
           h('div', { className: 'hero-logo' }, [
             h('img', { src: '/images/Reyadah_Logo.png', alt: 'Logo', style: { width: '100%', height: '100%', objectFit: 'contain' } }),
           ]),
-          h('h1', null, 'Hello there! 👋'),
-          h('p', { className: 'hero-copy' }, 'Sign in with your employee number and password to access attendance, payroll, documents, and HR tools.'),
+          h('h1', null, 'Welcome to Reyadah 🚀'),
+          h('p', { className: 'hero-copy' }, 'Your complete HR & attendance management portal. Sign in to access payroll, documents, leave management, and more.'),
           h('div', { className: 'feature-list' }, [
             h('div', { className: 'feature-item' }, [
-              h('span', { className: 'feature-badge' }, '01'),
-              h('p', null, 'Fast attendance tracking'),
+              h('span', { className: 'feature-badge' }, '📸'),
+              h('p', null, 'Face recognition attendance tracking'),
             ]),
             h('div', { className: 'feature-item' }, [
-              h('span', { className: 'feature-badge' }, '02'),
-              h('p', null, 'Payslip & payroll access'),
+              h('span', { className: 'feature-badge' }, '💰'),
+              h('p', null, 'Payslip & payroll management'),
             ]),
             h('div', { className: 'feature-item' }, [
-              h('span', { className: 'feature-badge' }, '03'),
-              h('p', null, 'Document upload and profile management'),
+              h('span', { className: 'feature-badge' }, '📄'),
+              h('p', null, 'Document upload and secure storage'),
+            ]),
+            h('div', { className: 'feature-item' }, [
+              h('span', { className: 'feature-badge' }, '✈️'),
+              h('p', null, 'Leave & air ticket requests'),
             ]),
           ]),
           h('div', { className: 'promo-card' }, [
-            h('h3', null, 'Expense Management'),
-            h('p', null, 'Register now to manage claims and approvals in one place.'),
-            h('button', { className: 'btn secondary small' }, 'Register Now'),
+            h('h3', null, '🌟 New! AI Assistant'),
+            h('p', null, 'Get instant answers about your attendance, leave, and payslips with our AI chatbot.'),
+            h('span', { className: 'badge', style: { background: '#fff', color: 'var(--accent)', marginTop: '8px' } }, 'Try saying "Help"'),
           ]),
         ]),
 
