@@ -943,14 +943,20 @@ router.post('/me/photo', auth, uploadMemory.single('photo'), asyncHandler(async 
     });
     profile.photoUrl = cloudResult.secureUrl;
     await profile.save();
-    res.json({ photoUrl: profile.photoUrl });
+    console.log('Profile photo uploaded to Cloudinary:', cloudResult.secureUrl);
+    return res.json({ photoUrl: profile.photoUrl });
   } catch (cloudErr) {
-    // Fallback to local storage if Cloudinary fails
-    const filePath = path.join(UPLOAD_ROOT, profile.employeeId, req.file.filename);
-    await processPassportImage(filePath);
-    profile.photoUrl = `/uploads/${profile.employeeId}/${req.file.filename}`;
+    console.error('Cloudinary upload failed for profile photo:', cloudErr.message);
+    // Fallback: save buffer to local file
+    const safeName = `photo_${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
+    const employeeDir = path.join(UPLOAD_ROOT, profile.employeeId);
+    if (!fs.existsSync(employeeDir)) fs.mkdirSync(employeeDir, { recursive: true });
+    const filePath = path.join(employeeDir, safeName);
+    fs.writeFileSync(filePath, req.file.buffer);
+    try { await processPassportImage(filePath); } catch (e) {}
+    profile.photoUrl = `/uploads/${profile.employeeId}/${safeName}`;
     await profile.save();
-    res.json({ photoUrl: profile.photoUrl });
+    return res.json({ photoUrl: profile.photoUrl });
   }
 }));
 
@@ -969,14 +975,20 @@ router.post('/:employeeId/photo', auth, uploadMemory.single('photo'), asyncHandl
     });
     employee.photoUrl = cloudResult.secureUrl;
     await employee.save();
-    res.json({ photoUrl: employee.photoUrl });
+    console.log('Admin uploaded profile photo to Cloudinary:', cloudResult.secureUrl);
+    return res.json({ photoUrl: employee.photoUrl });
   } catch (cloudErr) {
-    // Fallback to local storage if Cloudinary fails
-    const filePath = path.join(UPLOAD_ROOT, employee.employeeId, req.file.filename);
-    await processPassportImage(filePath);
-    employee.photoUrl = `/uploads/${employee.employeeId}/${req.file.filename}`;
+    console.error('Cloudinary upload failed for admin profile photo:', cloudErr.message);
+    // Fallback: save buffer to local file
+    const safeName = `photo_${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
+    const employeeDir = path.join(UPLOAD_ROOT, employee.employeeId);
+    if (!fs.existsSync(employeeDir)) fs.mkdirSync(employeeDir, { recursive: true });
+    const filePath = path.join(employeeDir, safeName);
+    fs.writeFileSync(filePath, req.file.buffer);
+    try { await processPassportImage(filePath); } catch (e) {}
+    employee.photoUrl = `/uploads/${employee.employeeId}/${safeName}`;
     await employee.save();
-    res.json({ photoUrl: employee.photoUrl });
+    return res.json({ photoUrl: employee.photoUrl });
   }
 }));
 
