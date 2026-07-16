@@ -930,30 +930,54 @@ router.delete('/:employeeId', auth, asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
-// upload profile photo
-router.post('/me/photo', auth, upload.single('photo'), asyncHandler(async (req, res) => {
+// upload profile photo (now uses Cloudinary)
+router.post('/me/photo', auth, uploadMemory.single('photo'), asyncHandler(async (req, res) => {
   const profile = req.user;
   if (!req.file) return res.status(400).json({ error: 'photo required' });
-  const filePath = path.join(UPLOAD_ROOT, profile.employeeId, req.file.filename);
-  // process image if possible
-  await processPassportImage(filePath);
-  profile.photoUrl = `/uploads/${profile.employeeId}/${req.file.filename}`;
-  await profile.save();
-  res.json({ photoUrl: profile.photoUrl });
+  
+  try {
+    const cloudResult = await cloudinaryUpload.uploadBuffer(req.file.buffer, {
+      folder: `reyadah/profiles/${profile.employeeId}`,
+      publicId: `photo_${Date.now()}`,
+      resourceType: 'image',
+    });
+    profile.photoUrl = cloudResult.secureUrl;
+    await profile.save();
+    res.json({ photoUrl: profile.photoUrl });
+  } catch (cloudErr) {
+    // Fallback to local storage if Cloudinary fails
+    const filePath = path.join(UPLOAD_ROOT, profile.employeeId, req.file.filename);
+    await processPassportImage(filePath);
+    profile.photoUrl = `/uploads/${profile.employeeId}/${req.file.filename}`;
+    await profile.save();
+    res.json({ photoUrl: profile.photoUrl });
+  }
 }));
 
-// admin: upload photo for any employee
-router.post('/:employeeId/photo', auth, upload.single('photo'), asyncHandler(async (req, res) => {
+// admin: upload photo for any employee (now uses Cloudinary)
+router.post('/:employeeId/photo', auth, uploadMemory.single('photo'), asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
   const employee = await Employee.findOne({ where: { employeeId: req.params.employeeId } });
   if (!employee) return res.status(404).json({ error: 'employee not found' });
   if (!req.file) return res.status(400).json({ error: 'photo required' });
 
-  const filePath = path.join(UPLOAD_ROOT, employee.employeeId, req.file.filename);
-  await processPassportImage(filePath);
-  employee.photoUrl = `/uploads/${employee.employeeId}/${req.file.filename}`;
-  await employee.save();
-  res.json({ photoUrl: employee.photoUrl });
+  try {
+    const cloudResult = await cloudinaryUpload.uploadBuffer(req.file.buffer, {
+      folder: `reyadah/profiles/${employee.employeeId}`,
+      publicId: `photo_${Date.now()}`,
+      resourceType: 'image',
+    });
+    employee.photoUrl = cloudResult.secureUrl;
+    await employee.save();
+    res.json({ photoUrl: employee.photoUrl });
+  } catch (cloudErr) {
+    // Fallback to local storage if Cloudinary fails
+    const filePath = path.join(UPLOAD_ROOT, employee.employeeId, req.file.filename);
+    await processPassportImage(filePath);
+    employee.photoUrl = `/uploads/${employee.employeeId}/${req.file.filename}`;
+    await employee.save();
+    res.json({ photoUrl: employee.photoUrl });
+  }
 }));
 
 // list employees for admins and managers
