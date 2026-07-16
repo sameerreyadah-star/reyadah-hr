@@ -930,66 +930,36 @@ router.delete('/:employeeId', auth, asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
-// upload profile photo (now uses Cloudinary)
+// upload profile photo (uses Cloudinary - no fallback to avoid Render disk issues)
 router.post('/me/photo', auth, uploadMemory.single('photo'), asyncHandler(async (req, res) => {
-  const profile = req.user;
   if (!req.file) return res.status(400).json({ error: 'photo required' });
+  const profile = req.user;
   
-  try {
-    const cloudResult = await cloudinaryUpload.uploadBuffer(req.file.buffer, {
-      folder: `reyadah/profiles/${profile.employeeId}`,
-      publicId: `photo_${Date.now()}`,
-      resourceType: 'image',
-    });
-    profile.photoUrl = cloudResult.secureUrl;
-    await profile.save();
-    console.log('Profile photo uploaded to Cloudinary:', cloudResult.secureUrl);
-    return res.json({ photoUrl: profile.photoUrl });
-  } catch (cloudErr) {
-    console.error('Cloudinary upload failed for profile photo:', cloudErr.message);
-    // Fallback: save buffer to local file
-    const safeName = `photo_${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
-    const employeeDir = path.join(UPLOAD_ROOT, profile.employeeId);
-    if (!fs.existsSync(employeeDir)) fs.mkdirSync(employeeDir, { recursive: true });
-    const filePath = path.join(employeeDir, safeName);
-    fs.writeFileSync(filePath, req.file.buffer);
-    try { await processPassportImage(filePath); } catch (e) {}
-    profile.photoUrl = `/uploads/${profile.employeeId}/${safeName}`;
-    await profile.save();
-    return res.json({ photoUrl: profile.photoUrl });
-  }
+  const cloudResult = await cloudinaryUpload.uploadBuffer(req.file.buffer, {
+    folder: `reyadah/profiles/${profile.employeeId}`,
+    publicId: `photo_${Date.now()}`,
+    resourceType: 'image',
+  });
+  profile.photoUrl = cloudResult.secureUrl;
+  await profile.save();
+  res.json({ photoUrl: profile.photoUrl });
 }));
 
-// admin: upload photo for any employee (now uses Cloudinary)
+// admin: upload photo for any employee (uses Cloudinary)
 router.post('/:employeeId/photo', auth, uploadMemory.single('photo'), asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
   const employee = await Employee.findOne({ where: { employeeId: req.params.employeeId } });
   if (!employee) return res.status(404).json({ error: 'employee not found' });
   if (!req.file) return res.status(400).json({ error: 'photo required' });
 
-  try {
-    const cloudResult = await cloudinaryUpload.uploadBuffer(req.file.buffer, {
-      folder: `reyadah/profiles/${employee.employeeId}`,
-      publicId: `photo_${Date.now()}`,
-      resourceType: 'image',
-    });
-    employee.photoUrl = cloudResult.secureUrl;
-    await employee.save();
-    console.log('Admin uploaded profile photo to Cloudinary:', cloudResult.secureUrl);
-    return res.json({ photoUrl: employee.photoUrl });
-  } catch (cloudErr) {
-    console.error('Cloudinary upload failed for admin profile photo:', cloudErr.message);
-    // Fallback: save buffer to local file
-    const safeName = `photo_${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
-    const employeeDir = path.join(UPLOAD_ROOT, employee.employeeId);
-    if (!fs.existsSync(employeeDir)) fs.mkdirSync(employeeDir, { recursive: true });
-    const filePath = path.join(employeeDir, safeName);
-    fs.writeFileSync(filePath, req.file.buffer);
-    try { await processPassportImage(filePath); } catch (e) {}
-    employee.photoUrl = `/uploads/${employee.employeeId}/${safeName}`;
-    await employee.save();
-    return res.json({ photoUrl: employee.photoUrl });
-  }
+  const cloudResult = await cloudinaryUpload.uploadBuffer(req.file.buffer, {
+    folder: `reyadah/profiles/${employee.employeeId}`,
+    publicId: `photo_${Date.now()}`,
+    resourceType: 'image',
+  });
+  employee.photoUrl = cloudResult.secureUrl;
+  await employee.save();
+  res.json({ photoUrl: employee.photoUrl });
 }));
 
 // list employees for admins and managers
