@@ -148,6 +148,8 @@ function AiChatWidget({ token, user }) {
   const [messages, setMessages] = React.useState([]);
   const [input, setInput] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const [ticketMode, setTicketMode] = React.useState(false);
+  const [ticketForm, setTicketForm] = React.useState({ subject: '', description: '', category: 'technical', priority: 'medium' });
   const chatRef = React.useRef(null);
   const inputRef = React.useRef(null);
 
@@ -157,7 +159,7 @@ function AiChatWidget({ token, user }) {
       setMessages([{
         role: 'bot',
         text: `Hi ${user?.name || 'there'}! 👋 I'm your **HR Assistant**. Ask me about your attendance, leave, payslips, or anything HR-related!`,
-        quickReplies: ['My attendance', 'Leave balance', 'My profile', 'Help']
+        quickReplies: ['My attendance', 'Leave balance', 'My profile', 'Help', 'Raise a ticket 🎫']
       }]);
     }
   }, [open]);
@@ -179,6 +181,16 @@ function AiChatWidget({ token, user }) {
   async function sendMessage(msg) {
     const text = (msg || input).trim();
     if (!text || busy) return;
+
+    // Check if user wants to raise a ticket
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes('raise a ticket') || lowerText.includes('raise ticket') || lowerText === 'raise a ticket 🎫') {
+      setTicketMode(true);
+      setMessages(prev => [...prev, { role: 'user', text }]);
+      setMessages(prev => [...prev, { role: 'bot', text: 'Please describe your issue below and click **Submit Ticket**.' }]);
+      setInput('');
+      return;
+    }
 
     // Add user message
     setMessages(prev => [...prev, { role: 'user', text }]);
@@ -207,6 +219,29 @@ function AiChatWidget({ token, user }) {
       }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'bot', text: 'Sorry, I could not reach the server. Please try again.' }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitTicketFromChat() {
+    if (!ticketForm.subject || !ticketForm.description) return;
+    setBusy(true);
+    try {
+      await apiRequest('/api/requests/tickets', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          subject: ticketForm.subject,
+          category: ticketForm.category || 'technical',
+          description: ticketForm.description,
+          priority: ticketForm.priority || 'medium',
+        }),
+      });
+      setMessages(prev => [...prev, { role: 'bot', text: '✅ Your ticket has been submitted successfully! An admin will review it shortly.' }]);
+      setTicketMode(false);
+      setTicketForm({ subject: '', description: '', category: 'technical', priority: 'medium' });
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'bot', text: '❌ Failed to submit ticket: ' + (err.error || 'Please try again.') }]);
     } finally {
       setBusy(false);
     }
@@ -281,6 +316,49 @@ function AiChatWidget({ token, user }) {
         ]),
       ]),
 
+      // Ticket form (shown when ticketMode is true)
+      ticketMode && h('div', { className: 'ai-chat-ticket-form', style: { padding: '12px', borderTop: '1px solid var(--border)', background: 'var(--accent-soft)' } }, [
+        h('strong', { style: { display: 'block', marginBottom: '8px', fontSize: '13px' } }, '🎫 Raise a Ticket'),
+        h('input', {
+          value: ticketForm.subject,
+          onChange: (e) => setTicketForm(prev => ({ ...prev, subject: e.target.value })),
+          placeholder: 'Subject (e.g. Attendance issue)',
+          style: { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '6px', fontSize: '12px', boxSizing: 'border-box' },
+        }),
+        h('select', {
+          value: ticketForm.category,
+          onChange: (e) => setTicketForm(prev => ({ ...prev, category: e.target.value })),
+          style: { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '6px', fontSize: '12px' },
+        }, [
+          h('option', { value: 'technical' }, 'Technical Issue'),
+          h('option', { value: 'attendance' }, 'Attendance Correction'),
+          h('option', { value: 'work-from-home' }, 'Work From Home'),
+          h('option', { value: 'shift-change' }, 'Shift Change'),
+          h('option', { value: 'hr' }, 'HR Query'),
+          h('option', { value: 'other' }, 'Other'),
+        ]),
+        h('textarea', {
+          value: ticketForm.description,
+          onChange: (e) => setTicketForm(prev => ({ ...prev, description: e.target.value })),
+          placeholder: 'Describe your issue in detail...',
+          rows: 3,
+          style: { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '8px', fontSize: '12px', boxSizing: 'border-box', resize: 'vertical' },
+        }),
+        h('div', { style: { display: 'flex', gap: '6px' } }, [
+          h('button', {
+            className: 'btn primary small',
+            onClick: submitTicketFromChat,
+            disabled: busy || !ticketForm.subject || !ticketForm.description,
+            style: { flex: 1, padding: '8px', fontSize: '12px', cursor: busy || !ticketForm.subject || !ticketForm.description ? 'not-allowed' : 'pointer' },
+          }, busy ? 'Submitting...' : '✅ Submit Ticket'),
+          h('button', {
+            className: 'btn white small',
+            onClick: () => { setTicketMode(false); setTicketForm({ subject: '', description: '', category: 'technical', priority: 'medium' }); },
+            style: { padding: '8px', fontSize: '12px', cursor: 'pointer' },
+          }, 'Cancel'),
+        ]),
+      ]),
+
       // Input area
       h('div', { className: 'ai-chat-input-area' }, [
         h('input', {
@@ -290,7 +368,7 @@ function AiChatWidget({ token, user }) {
           value: input,
           onChange: (e) => setInput(e.target.value),
           onKeyDown: handleKeyDown,
-          placeholder: 'Ask me anything...',
+          placeholder: ticketMode ? 'Fill the form above...' : 'Ask me anything...',
           disabled: busy,
         }),
         h('button', {
@@ -571,6 +649,12 @@ function App() {
   const [documentMeta, setDocumentMeta] = useState({ docType: '', description: '', issueDate: '', expiryDate: '' });
   const [employeeDocMeta, setEmployeeDocMeta] = useState({ docType: '', description: '', issueDate: '', expiryDate: '' });
   const [employeeDocFile, setEmployeeDocFile] = useState(null);
+  // Profile document upload (employee's own profile)
+  const [profileDocMeta, setProfileDocMeta] = useState({ docType: '', description: '', issueDate: '', expiryDate: '' });
+  const [profileDocFile, setProfileDocFile] = useState(null);
+  // Profile asset add form (admin employee profile)
+  const [profileAssetForm, setProfileAssetForm] = useState({ showForm: false, name: '', serialNumber: '', assetType: '', model: '', description: '' });
+  const [profileAssetBusy, setProfileAssetBusy] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [leaveBalances, setLeaveBalances] = useState([]);
   const [leaveBalanceBusy, setLeaveBalanceBusy] = useState(false);
@@ -1060,6 +1144,51 @@ function App() {
       setMessage('Document added to employee profile');
     } catch (err) {
       setMessage(err.error || 'Failed to upload employee document');
+    }
+  }
+
+  async function uploadProfileDocument() {
+    if (!token || !profileDocFile) return;
+    const form = new FormData();
+    form.append('file', profileDocFile);
+    form.append('docType', profileDocMeta.docType || 'General');
+    form.append('description', profileDocMeta.description || '');
+    form.append('issueDate', profileDocMeta.issueDate || '');
+    form.append('expiryDate', profileDocMeta.expiryDate || '');
+    try {
+      await apiRequest('/api/documents/upload', token, { method: 'POST', body: form });
+      setProfileDocFile(null);
+      setProfileDocMeta({ docType: '', description: '', issueDate: '', expiryDate: '' });
+      await loadProfile();
+      setMessage('Document added to your profile');
+    } catch (err) {
+      setMessage(err.error || 'Failed to upload document');
+    }
+  }
+
+  async function assignProfileAsset() {
+    if (!token || !selectedEmployeeId) return;
+    setProfileAssetBusy(true);
+    try {
+      const payload = {
+        name: profileAssetForm.name,
+        serialNumber: profileAssetForm.serialNumber,
+        assetType: profileAssetForm.assetType,
+        model: profileAssetForm.model,
+        description: profileAssetForm.description,
+        status: 'assigned',
+      };
+      await apiRequest(`/api/employees/${selectedEmployeeId}/assets`, token, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      setProfileAssetForm({ showForm: false, name: '', serialNumber: '', assetType: '', model: '', description: '' });
+      await loadEmployeeDetails(selectedEmployeeId);
+      setMessage('Asset assigned successfully');
+    } catch (err) {
+      setMessage(err.error || 'Failed to assign asset');
+    } finally {
+      setProfileAssetBusy(false);
     }
   }
 
@@ -2177,7 +2306,7 @@ function App() {
     return h('div', { className: 'login-shell' }, [
       h('div', { className: 'login-grid' }, [
         h('section', { className: 'login-side' }, [
-          h('span', { className: 'company-badge' }, '🏢 A K S Reyadah Trading L.L.C'),
+          h('span', { className: 'company-badge' }, '🏢 REYADAH - HR PORTAL'),
           h('div', { className: 'hero-logo' }, [
             h('img', { src: '/images/Reyadah_Logo.png', alt: 'Logo', style: { width: '100%', height: '100%', objectFit: 'contain' } }),
           ]),
@@ -2334,6 +2463,7 @@ function App() {
     assignAsset: 'Assign asset',
     assignShift: 'Shift roster',
     zkteco: 'ZKTeco devices',
+    tickets: 'Tickets 🎫',
     reports: 'Reports',
     holidays: 'Holidays',
     departments: 'Departments',
@@ -2489,6 +2619,7 @@ function App() {
         canView('requests') && h(NavButton, { label: 'Request Hub', icon: 'RQ', active: tab === 'requests', onClick: () => setTab('requests') }),
         canView('company') && h(NavButton, { label: 'Company', icon: 'CP', count: employees.length, active: tab === 'company', onClick: () => setTab('company') }),
         canView('admin') && h(NavButton, { label: 'Admin', icon: 'AD', count: employees.length, active: tab === 'admin', onClick: () => setTab('admin') }),
+        h(NavButton, { label: 'Help', icon: '❓', active: tab === 'help', onClick: () => setTab('help') }),
       ]),
       h('div', { className: 'status-card' }, [
         h('p', { className: 'status-label' }, 'Signed in as'),
@@ -2773,6 +2904,15 @@ function App() {
                     h('a', { href: doc.url, target: '_blank', className: 'btn white small', style: { textDecoration: 'none' } }, '📄 View'),
                   ]))
                 : h('p', { className: 'muted' }, 'No documents uploaded yet.'),
+              // Profile document upload form
+              h('div', { className: 'upload-row', style: { marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' } }, [
+                h('label', { className: 'field' }, ['Type', h('input', { type: 'text', value: profileDocMeta.docType, onChange: (e) => setProfileDocMeta(prev => ({ ...prev, docType: e.target.value })), placeholder: 'Contract, ID, Payslip' })]),
+                h('label', { className: 'field' }, ['Issue date', h('input', { type: 'date', value: profileDocMeta.issueDate, onChange: (e) => setProfileDocMeta(prev => ({ ...prev, issueDate: e.target.value })) })]),
+                h('label', { className: 'field' }, ['Expiry date', h('input', { type: 'date', value: profileDocMeta.expiryDate, onChange: (e) => setProfileDocMeta(prev => ({ ...prev, expiryDate: e.target.value })) })]),
+                h('label', { className: 'field' }, ['Notes', h('input', { type: 'text', value: profileDocMeta.description, onChange: (e) => setProfileDocMeta(prev => ({ ...prev, description: e.target.value })), placeholder: 'Optional notes' })]),
+                h('input', { type: 'file', onChange: (e) => setProfileDocFile(e.target.files[0]) }),
+              ]),
+              h('button', { className: 'btn primary', onClick: uploadProfileDocument, style: { marginTop: '8px' } }, 'Add document'),
             ]),
                       h('div', { className: 'section' }, [
                         h('h3', null, 'My Assets'),
@@ -5192,9 +5332,120 @@ function App() {
           ]),
         ]),
 
+        tab === 'help' && h('div', { className: 'grid' }, [
+          h('div', { className: 'card' }, [
+            h('div', { className: 'panel-heading' }, [
+              h('div', null, [
+                h('p', { className: 'eyebrow' }, 'Help & Support'),
+                h('h2', null, '❓ Help Center'),
+                h('p', { className: 'muted' }, 'Learn how to use the Reyadah HR system. Find answers to common questions and get support.'),
+              ]),
+            ]),
+            h('div', { className: 'help-grid', style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px', padding: '16px' } }, [
+              h('div', { className: 'card help-card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                h('h3', null, '📸 Attendance'),
+                h('p', { className: 'muted' }, 'Clock in/out using face recognition. Use the camera button on the home page or attendance tab. Make sure you have good lighting and face the camera directly.'),
+                h('div', { style: { marginTop: '12px', fontSize: '13px' } }, [
+                  h('p', null, '• Click "Clock In" on the home page'),
+                  h('p', null, '• Allow camera access when prompted'),
+                  h('p', null, '• Take a clear selfie to verify your identity'),
+                  h('p', null, '• Repeat for clock out at end of shift'),
+                ]),
+              ]),
+              h('div', { className: 'card help-card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                h('h3', null, '📄 Documents'),
+                h('p', { className: 'muted' }, 'Upload and manage your HR documents like contracts, IDs, and payslips. Documents are stored securely in the cloud.'),
+                h('div', { style: { marginTop: '12px', fontSize: '13px' } }, [
+                  h('p', null, '• Go to Document Center in the sidebar'),
+                  h('p', null, '• Select document type and upload file'),
+                  h('p', null, '• Add issue/expiry dates for tracking'),
+                  h('p', null, '• View uploaded documents anytime'),
+                ]),
+              ]),
+              h('div', { className: 'card help-card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                h('h3', null, '📅 Leave Management'),
+                h('p', { className: 'muted' }, 'Apply for leave, check your balances, and track approval status. Leave requests go through manager and company approval.'),
+                h('div', { style: { marginTop: '12px', fontSize: '13px' } }, [
+                  h('p', null, '• Apply for leave in the Leave section'),
+                  h('p', null, '• Choose leave type (Annual, PH, Sick, etc.)'),
+                  h('p', null, '• Select dates and provide a reason'),
+                  h('p', null, '• Track approval status in real-time'),
+                ]),
+              ]),
+              h('div', { className: 'card help-card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                h('h3', null, '💰 Payroll & Payslips'),
+                h('p', { className: 'muted' }, 'View your payslips, check salary breakdowns, and download PDF statements. Payroll is processed monthly.'),
+                h('div', { style: { marginTop: '12px', fontSize: '13px' } }, [
+                  h('p', null, '• View payslips in the Payslips section'),
+                  h('p', null, '• Download PDF for each payslip'),
+                  h('p', null, '• Check salary breakdown and deductions'),
+                  h('p', null, '• Contact HR for payroll questions'),
+                ]),
+              ]),
+              h('div', { className: 'card help-card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                h('h3', null, '✈️ Request Hub'),
+                h('p', { className: 'muted' }, 'Submit tickets, expense claims, loan applications, medical reimbursements, and air ticket requests all in one place.'),
+                h('div', { style: { marginTop: '12px', fontSize: '13px' } }, [
+                  h('p', null, '• Go to Request Hub in the sidebar'),
+                  h('p', null, '• Choose the type of request'),
+                  h('p', null, '• Fill in the required details'),
+                  h('p', null, '• Attach supporting documents if needed'),
+                ]),
+              ]),
+              h('div', { className: 'card help-card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                h('h3', null, '🤖 AI Assistant'),
+                h('p', { className: 'muted' }, 'Use the AI chatbot for instant answers about your attendance, leave balance, payslips, and more. Look for the robot icon in the bottom-right corner.'),
+                h('div', { style: { marginTop: '12px', fontSize: '13px' } }, [
+                  h('p', null, '• Click the 🤖 icon to open the chat'),
+                  h('p', null, '• Ask questions like "My attendance"'),
+                  h('p', null, '• Get instant answers 24/7'),
+                  h('p', null, '• Try "Help" for available commands'),
+                ]),
+              ]),
+              h('div', { className: 'card help-card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                h('h3', null, '👤 Profile'),
+                h('p', { className: 'muted' }, 'Manage your profile, upload documents, view your assigned assets, and check your attendance history.'),
+                h('div', { style: { marginTop: '12px', fontSize: '13px' } }, [
+                  h('p', null, '• View your profile from the sidebar'),
+                  h('p', null, '• Upload profile photo'),
+                  h('p', null, '• Add documents to your profile'),
+                  h('p', null, '• View assigned assets'),
+                ]),
+              ]),
+              h('div', { className: 'card help-card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                h('h3', null, '🆘 Need More Help?'),
+                h('p', { className: 'muted' }, 'Contact us directly for immediate assistance.'),
+                h('div', { style: { marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' } }, [
+                  h('a', { href: 'https://wa.me/971543093091', target: '_blank', className: 'contact-link', style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '8px', background: 'var(--surface)', textDecoration: 'none', color: 'var(--text)', border: '1px solid var(--border)', transition: 'all 0.2s' } }, [
+                    h('span', { style: { fontSize: '24px' } }, '💬'),
+                    h('span', null, [
+                      h('strong', null, 'WhatsApp'),
+                      h('span', { style: { display: 'block', fontSize: '12px', color: 'var(--muted)' } }, '+971 54 309 3091'),
+                    ]),
+                  ]),
+                  h('a', { href: 'tel:+971543093091', className: 'contact-link', style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '8px', background: 'var(--surface)', textDecoration: 'none', color: 'var(--text)', border: '1px solid var(--border)', transition: 'all 0.2s' } }, [
+                    h('span', { style: { fontSize: '24px' } }, '📞'),
+                    h('span', null, [
+                      h('strong', null, 'Call'),
+                      h('span', { style: { display: 'block', fontSize: '12px', color: 'var(--muted)' } }, '+971 54 309 3091'),
+                    ]),
+                  ]),
+                  h('a', { href: 'mailto:samee@reyadah.ae', className: 'contact-link', style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '8px', background: 'var(--surface)', textDecoration: 'none', color: 'var(--text)', border: '1px solid var(--border)', transition: 'all 0.2s' } }, [
+                    h('span', { style: { fontSize: '24px' } }, '✉️'),
+                    h('span', null, [
+                      h('strong', null, 'Email'),
+                      h('span', { style: { display: 'block', fontSize: '12px', color: 'var(--muted)' } }, 'samee@reyadah.ae'),
+                    ]),
+                  ]),
+                ]),
+                h('p', { style: { marginTop: '12px', fontSize: '12px', color: 'var(--muted)', textAlign: 'center' } }, 'Or submit a support ticket in Request Hub / ask the AI Assistant'),
+              ]),
+            ]),
+          ]),
+        ]),
         tab === 'admin' && user.role === 'admin' && h('div', { className: 'admin-shell' }, [
           h('div', { className: 'admin-toolbar' }, [
-            ['team', 'bulkUpload', 'leaveBalances', 'employeeLeave', 'applyLeave', 'faceRegister', 'assignAsset', 'assignShift', 'zkteco', 'reports', 'holidays', 'departments', 'auditLog', 'eos'].map((page) => h('button', {
+            ['team', 'bulkUpload', 'leaveBalances', 'employeeLeave', 'applyLeave', 'faceRegister', 'assignAsset', 'assignShift', 'tickets', 'zkteco', 'reports', 'holidays', 'departments', 'auditLog', 'eos'].map((page) => h('button', {
               key: page,
               className: adminPage === page ? 'btn primary small' : 'btn secondary small',
               onClick: () => setAdminPage(page),
@@ -5936,71 +6187,7 @@ function App() {
                 ]),
                 h('button', { className: 'btn primary', onClick: uploadEmployeeDocument }, 'Add document'),
               ]),
-              h('div', { className: 'card' }, [
-                h('h3', null, 'Manual attendance (manager only)'),
-                (user && (user.role === 'admin' || user.role === 'restaurant-manager' || user.role === 'company-manager'))
-                  ? h('div', { className: 'attendance-editor-panel' }, [
-                      h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 } }, [
-                        h('label', { className: 'field', style: { margin: 0 } }, ['Year', h('input', { type: 'number', value: attendanceEditorYear, onChange: (e) => setAttendanceEditorYear(parseInt(e.target.value || new Date().getFullYear(),10)) })]),
-                        h('label', { className: 'field', style: { margin: 0 } }, ['Month', h('input', { type: 'number', min: 1, max: 12, value: attendanceEditorMonth, onChange: (e) => setAttendanceEditorMonth(Math.min(12, Math.max(1, parseInt(e.target.value||1,10)))) })]),
-                        h('button', { className: 'btn secondary', onClick: () => loadEmployeeMonthlyAttendance(selectedEmployeeDetails.employeeId, attendanceEditorYear, attendanceEditorMonth) }, 'Load month'),
-                      ]),
-                      h('div', { className: 'attendance-legend' }, [
-                        h('span', { className: 'legend-title' }, 'Status:'),
-                        h('span', { className: 'legend-item' }, [h('span', { className: 'legend-dot present' }), 'Present']),
-                        h('span', { className: 'legend-item' }, [h('span', { className: 'legend-dot absent' }), 'Absent']),
-                        h('span', { className: 'legend-item' }, [h('span', { className: 'legend-dot off' }), 'Weekly Off']),
-                        h('div', { style: { marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' } }, [
-                          h('label', { style: { display: 'flex', gap: 6, alignItems: 'center' } }, ['Bulk:', h('select', { value: attendanceBulkStatus, onChange: (e) => setAttendanceBulkStatus(e.target.value) }, [h('option', { value: '' }, '-'), h('option', { value: 'p' }, 'P'), h('option', { value: 'a' }, 'A'), h('option', { value: 'o' }, 'O')])]),
-                          h('button', { className: 'btn secondary', onClick: () => { if (!attendanceSelectedDate) return setMessage('Select a date to mark its week.'); applyBulkToWeek(selectedEmployeeDetails.employeeId, attendanceEditorYear, attendanceEditorMonth, attendanceBulkStatus); } }, 'Mark Week'),
-                          h('button', { className: 'btn secondary', onClick: () => applyBulkToMonth(selectedEmployeeDetails.employeeId, attendanceEditorYear, attendanceEditorMonth, attendanceBulkStatus) }, 'Mark Month'),
-                        ]),
-                      ]),
-                      h('div', { className: 'attendance-calendar' }, [
-                        h('div', { className: 'weekdays' }, ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((w) => h('div', { key: w, className: 'weekday' }, w))),
-                        attendanceEditorDays.length ? (() => {
-                          const year = attendanceEditorYear;
-                          const month = attendanceEditorMonth;
-                          const firstDay = new Date(year, month - 1, 1).getDay();
-                          const daysInMonth = new Date(year, month, 0).getDate();
-                          const cells = [];
-                          for (let i = 0; i < firstDay; i++) cells.push(null);
-                          for (let d = 1; d <= daysInMonth; d++) {
-                            const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                            const found = attendanceEditorDays.find(x => x.date === dateStr) || { date: dateStr, day: d, status: '' };
-                            cells.push(found);
-                          }
-                          return cells.map((cell, idx) => {
-                            if (cell === null) return h('div', { key: 'blank-' + idx, className: 'calendar-cell empty' });
-                            const isSelectedWeek = (() => {
-                              if (!attendanceSelectedDate) return false;
-                              const sel = new Date(attendanceSelectedDate);
-                              const selYear = sel.getFullYear();
-                              const selMonth = sel.getMonth();
-                              const selWeekStart = new Date(selYear, selMonth, sel.getDate() - sel.getDay());
-                              const selWeekEnd = new Date(selYear, selMonth, sel.getDate() - sel.getDay() + 6);
-                              const cur = new Date(cell.date + 'T00:00:00');
-                              return cur >= selWeekStart && cur <= selWeekEnd;
-                            })();
-                            const isSelectedDate = attendanceSelectedDate === cell.date;
-                            const statusClass = cell.status ? ' status-' + cell.status : '';
-                            return h('div', { key: cell.date, className: 'calendar-cell' + statusClass + (isSelectedWeek ? ' selected-week' : '') + (isSelectedDate ? ' selected-date' : '') }, [
-                              h('div', { className: 'date-number', onClick: () => { setAttendanceSelectedDate(prev => prev === cell.date ? null : cell.date); }, style: { cursor: 'pointer' } }, cell.day),
-                              h('select', { value: cell.status || '', onChange: (e) => { const val = e.target.value; setAttendanceEditorDays(prev => { const exists = prev.find(p => p.date === cell.date); if (exists) return prev.map(p => p.date === cell.date ? { ...p, status: val } : p); return [...prev, { date: cell.date, day: cell.day, status: val }]; }); } }, [
-                                h('option', { value: '' }, '-'), h('option', { value: 'p' }, 'P'), h('option', { value: 'a' }, 'A'), h('option', { value: 'o' }, 'O'),
-                              ]),
-                              h('div', { className: 'tooltip' }, (cell.date || '') + ' — ' + (cell.status === 'p' ? 'Present' : cell.status === 'a' ? 'Absent' : cell.status === 'o' ? 'Weekly off' : 'Not set')),
-                            ]);
-                          });
-                        })() : h('p', { className: 'muted' }, 'Load a month to edit attendance.'),
-                      ]),
-                      h('div', { className: 'form-actions' }, [
-                        h('button', { className: 'btn primary', onClick: async () => { const map = {}; attendanceEditorDays.forEach(dd => { if (dd.status) map[dd.day] = dd.status; }); await saveEmployeeMonthlyAttendance(selectedEmployeeDetails.employeeId, attendanceEditorYear, attendanceEditorMonth, map); } }, 'Save changes'),
-                        h('button', { className: 'btn secondary', onClick: async () => await loadEmployeeMonthlyAttendance(selectedEmployeeDetails.employeeId, attendanceEditorYear, attendanceEditorMonth) }, 'Reset'),
-                      ]),
-                    ])
-                  : h('p', { className: 'muted' }, 'Only managers can edit attendance.'),
-              ]),
+              // Manual attendance moved to admin section
               h('div', { className: 'card' }, [
                 h('h3', null, 'Assets'),
                 selectedEmployeeDetails.assets && selectedEmployeeDetails.assets.length
@@ -6028,6 +6215,22 @@ function App() {
                       ]);
                     })
                   : h('p', { className: 'muted' }, 'No assets assigned.'),
+                // Add Asset button
+                h('div', { style: { marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' } }, [
+                  !profileAssetForm.showForm
+                    ? h('button', { className: 'btn primary small', onClick: () => setProfileAssetForm(prev => ({ ...prev, showForm: true })) }, '➕ Add Asset')
+                    : h('div', { className: 'form-grid', style: { marginTop: '8px' } }, [
+                        h('label', { className: 'field' }, ['Name', h('input', { value: profileAssetForm.name, onChange: (e) => setProfileAssetForm(prev => ({ ...prev, name: e.target.value })), placeholder: 'Asset name' })]),
+                        h('label', { className: 'field' }, ['Serial No', h('input', { value: profileAssetForm.serialNumber, onChange: (e) => setProfileAssetForm(prev => ({ ...prev, serialNumber: e.target.value })), placeholder: 'Serial number' })]),
+                        h('label', { className: 'field' }, ['Type', h('input', { value: profileAssetForm.assetType, onChange: (e) => setProfileAssetForm(prev => ({ ...prev, assetType: e.target.value })), placeholder: 'Laptop, Phone...' })]),
+                        h('label', { className: 'field' }, ['Model', h('input', { value: profileAssetForm.model, onChange: (e) => setProfileAssetForm(prev => ({ ...prev, model: e.target.value })), placeholder: 'Model' })]),
+                        h('label', { className: 'field', style: { gridColumn: 'span 2' } }, ['Description', h('input', { value: profileAssetForm.description, onChange: (e) => setProfileAssetForm(prev => ({ ...prev, description: e.target.value })), placeholder: 'Optional notes' })]),
+                        h('div', { className: 'form-actions', style: { gridColumn: 'span 2' } }, [
+                          h('button', { className: 'btn primary', onClick: assignProfileAsset, disabled: profileAssetBusy || !profileAssetForm.name || !profileAssetForm.serialNumber || !profileAssetForm.assetType }, profileAssetBusy ? 'Assigning...' : 'Assign Asset'),
+                          h('button', { className: 'btn secondary', onClick: () => setProfileAssetForm({ showForm: false, name: '', serialNumber: '', assetType: '', model: '', description: '' }) }, 'Cancel'),
+                        ]),
+                      ]),
+                ]),
               ]),
             ]),
           ]),
@@ -6947,6 +7150,122 @@ function App() {
                   actionLabel: null,
                 }),
               ]),
+            ]),
+            adminPage === 'tickets' && h('div', { className: 'leave-balance-shell' }, [
+              h('div', { className: 'card' }, [
+                h('div', { className: 'panel-heading' }, [
+                  h('div', null, [
+                    h('p', { className: 'eyebrow' }, '🎫 Support Tickets'),
+                    h('h2', null, 'Technical Issues & Support Requests'),
+                    h('p', { className: 'muted' }, 'All tickets raised by employees are shown here. Respond to close them.'),
+                  ]),
+                  h('button', { className: 'btn secondary small', onClick: async () => {
+                    try {
+                      const data = await apiRequest('/api/requests/tickets/all', token);
+                      setTickets(Array.isArray(data) ? data : []);
+                      setMessage('Tickets loaded');
+                    } catch (err) {
+                      setMessage(err.error || 'Failed to load tickets');
+                    }
+                  } }, '🔄 Refresh'),
+                ]),
+              ]),
+              h('div', { className: 'grid', style: { gap: '12px' } },
+                tickets.length > 0
+                  ? tickets.map((t) => h('div', { key: t.id, className: 'card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                      h('div', { style: { display: 'flex', gap: '12px', alignItems: 'flex-start' } }, [
+                        t.Employee && (t.Employee.photoUrl
+                          ? h('img', { src: t.Employee.photoUrl, className: 'employee-avatar', alt: t.Employee.name })
+                          : h('div', { className: 'employee-avatar placeholder' }, initialsFrom(t.Employee?.name || '?'))),
+                        h('div', { style: { flex: 1 } }, [
+                          h('div', { style: { display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' } }, [
+                            h('strong', { style: { fontSize: '15px' } }, t.subject),
+                            h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } }, [
+                              h('span', { className: `badge ${t.status === 'open' ? 'badge-pending' : t.status === 'in-progress' ? 'badge-pending' : 'badge-success'} small` }, t.status || 'open'),
+                              t.priority && h('span', { className: `badge ${t.priority === 'high' || t.priority === 'urgent' ? 'badge-rejected' : 'badge-pending'} small` }, t.priority),
+                              t.category && h('span', { className: 'badge small' }, t.category),
+                            ]),
+                          ]),
+                          h('p', { className: 'muted', style: { fontSize: '12px', margin: '4px 0' } }, 
+                            `${t.Employee?.name || 'Unknown'} (${t.employeeId}) · ${new Date(t.createdAt).toLocaleString()}`
+                          ),
+                          h('p', { style: { marginTop: '8px', fontSize: '13px', color: 'var(--text)', whiteSpace: 'pre-wrap' } }, t.description),
+                          t.adminResponse && h('div', { style: { marginTop: '8px', padding: '8px 12px', background: 'var(--accent-soft)', borderRadius: '8px', borderLeft: '3px solid #1976d2' } }, [
+                            h('strong', { style: { fontSize: '12px', color: '#1976d2' } }, 'Admin Response:'),
+                            h('p', { style: { marginTop: '4px', fontSize: '12px' } }, t.adminResponse),
+                          ]),
+                        ]),
+                      ]),
+                      (t.status === 'open' || t.status === 'in-progress') && h('div', { style: { marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' } }, [
+                        h('input', {
+                          id: `ticket-resp-${t.id}`,
+                          style: { flex: 1, minWidth: '200px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12px' },
+                          placeholder: 'Type your response...',
+                          onKeyDown: async (e) => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                              try {
+                                await apiRequest('/api/requests/tickets/' + t.id, token, {
+                                  method: 'PUT',
+                                  body: JSON.stringify({ adminResponse: e.target.value.trim(), status: 'resolved' }),
+                                });
+                                e.target.value = '';
+                                const data = await apiRequest('/api/requests/tickets/all', token);
+                                setTickets(Array.isArray(data) ? data : []);
+                                setMessage('✅ Ticket resolved');
+                              } catch (err) {
+                                setMessage(err.error || 'Failed to respond');
+                              }
+                            }
+                          },
+                        }),
+                        h('button', {
+                          className: 'btn primary small',
+                          onClick: async (e) => {
+                            const input = document.getElementById(`ticket-resp-${t.id}`);
+                            if (!input || !input.value.trim()) return;
+                            try {
+                              await apiRequest('/api/requests/tickets/' + t.id, token, {
+                                method: 'PUT',
+                                body: JSON.stringify({ adminResponse: input.value.trim(), status: 'resolved' }),
+                              });
+                              input.value = '';
+                              const data = await apiRequest('/api/requests/tickets/all', token);
+                              setTickets(Array.isArray(data) ? data : []);
+                              setMessage('✅ Ticket resolved');
+                            } catch (err) {
+                              setMessage(err.error || 'Failed to respond');
+                            }
+                          },
+                        }, '✅ Resolve'),
+                        h('button', {
+                          className: 'btn white small',
+                          onClick: async () => {
+                            try {
+                              await apiRequest('/api/requests/tickets/' + t.id, token, {
+                                method: 'PUT',
+                                body: JSON.stringify({ status: 'closed' }),
+                              });
+                              const data = await apiRequest('/api/requests/tickets/all', token);
+                              setTickets(Array.isArray(data) ? data : []);
+                              setMessage('Ticket closed');
+                            } catch (err) {
+                              setMessage(err.error || 'Failed to close ticket');
+                            }
+                          },
+                        }, 'Close'),
+                      ]),
+                    ]))
+                  : h('div', { className: 'card' }, [
+                      h(EmptyState, { title: 'No tickets yet', message: 'When employees raise tickets via the AI Assistant or Request Hub, they will appear here.', actionLabel: 'Refresh', onAction: async () => {
+                        try {
+                          const data = await apiRequest('/api/requests/tickets/all', token);
+                          setTickets(Array.isArray(data) ? data : []);
+                        } catch (err) {
+                          setMessage(err.error || 'Failed to load tickets');
+                        }
+                      } }),
+                    ])
+              ),
             ]),
             adminPage === 'leaveBalances' && h('div', { className: 'leave-balance-shell' }, [
               h('div', { className: 'card' }, [
