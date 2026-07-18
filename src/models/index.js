@@ -22,6 +22,8 @@ const Loan = require('./loan')(sequelize);
 const MedicalReimbursement = require('./medicalReimbursement')(sequelize);
 const AirTicketReimbursement = require('./airTicketReimbursement')(sequelize);
 const WorkTiming = require('./workTiming')(sequelize);
+const BiometricDevice = require('./biometricDevice')(sequelize);
+const BiometricLog = require('./biometricLog')(sequelize);
 
 Employee.hasMany(Attendance, { foreignKey: 'employeeId' });
 Attendance.belongsTo(Employee, { foreignKey: 'employeeId' });
@@ -50,4 +52,7 @@ MedicalReimbursement.belongsTo(Employee, { foreignKey: 'employeeId', targetKey: 
 Employee.hasMany(AirTicketReimbursement, { foreignKey: 'employeeId', sourceKey: 'employeeId' });
 AirTicketReimbursement.belongsTo(Employee, { foreignKey: 'employeeId', targetKey: 'employeeId' });
 
-module.exports = { sequelize, Employee, Attendance, Payroll, LeaveRequest, ZkTecoDevice, ZkTecoLog, Ticket, Expense, Loan, MedicalReimbursement, AirTicketReimbursement, WorkTiming };
+BiometricDevice.hasMany(BiometricLog, { foreignKey: 'deviceId' });
+BiometricLog.belongsTo(BiometricDevice, { foreignKey: 'deviceId' });
+
+module.exports = { sequelize, Employee, Attendance, Payroll, LeaveRequest, ZkTecoDevice, ZkTecoLog, Ticket, Expense, Loan, MedicalReimbursement, AirTicketReimbursement, WorkTiming, BiometricDevice, BiometricLog };

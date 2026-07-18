@@ -2464,6 +2464,7 @@ function App() {
     assignShift: 'Shift roster',
     zkteco: 'ZKTeco devices',
     tickets: 'Tickets 🎫',
+    biometric: 'Biometric API',
     reports: 'Reports',
     holidays: 'Holidays',
     departments: 'Departments',
@@ -5445,7 +5446,7 @@ function App() {
         ]),
         tab === 'admin' && user.role === 'admin' && h('div', { className: 'admin-shell' }, [
           h('div', { className: 'admin-toolbar' }, [
-            ['team', 'bulkUpload', 'leaveBalances', 'employeeLeave', 'applyLeave', 'faceRegister', 'assignAsset', 'assignShift', 'tickets', 'zkteco', 'reports', 'holidays', 'departments', 'auditLog', 'eos'].map((page) => h('button', {
+            ['team', 'bulkUpload', 'leaveBalances', 'employeeLeave', 'applyLeave', 'faceRegister', 'assignAsset', 'assignShift', 'tickets', 'zkteco', 'biometric', 'reports', 'holidays', 'departments', 'auditLog', 'eos'].map((page) => h('button', {
               key: page,
               className: adminPage === page ? 'btn primary small' : 'btn secondary small',
               onClick: () => setAdminPage(page),

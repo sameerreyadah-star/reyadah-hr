@@ -21,6 +21,7 @@ const auditLogsRoutes = require('./routes/auditLogs');
 const eosRoutes = require('./routes/eos');
 const employeesManagementRoutes = require('./routes/employeesManagement');
 const workTimingRoutes = require('./routes/workTiming');
+const biometricIntegrationRoutes = require('./routes/biometricIntegration');
 
 const syncService = require('./services/syncService');
 const zktecoService = require('./services/zktecoService');
@@ -136,6 +137,7 @@ app.use('/api/audit-logs', auditLogsRoutes);
 app.use('/api/eos', eosRoutes);
 app.use('/api/employees-management', employeesManagementRoutes);
 app.use('/api/work-timings', workTimingRoutes);
+app.use('/api/biometric', biometricIntegrationRoutes);
 
 // error handling
 app.use((err, req, res, next) => {
