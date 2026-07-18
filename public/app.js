@@ -735,6 +735,7 @@ function App() {
   const [eosTemplateInfo, setEosTemplateInfo] = useState(null);
   const [eosTemplateUploadBusy, setEosTemplateUploadBusy] = useState(false);
   const [eosCompanies, setEosCompanies] = useState([]);
+  const [biometricDevices, setBiometricDevices] = useState([]);
   const companyLogoSrc = `${COMPANY_LOGO_URL}?v=${companyLogoVersion}`;
 
   // Collapsible sidebar sections state
@@ -7150,6 +7151,123 @@ function App() {
                   message: 'Type an employee ID or name above to auto-fill their details on the form.',
                   actionLabel: null,
                 }),
+              ]),
+            ]),
+            adminPage === 'biometric' && h('div', { className: 'leave-balance-shell' }, [
+              h('div', { className: 'card' }, [
+                h('div', { className: 'panel-heading' }, [
+                  h('div', null, [
+                    h('p', { className: 'eyebrow' }, '🔐 Biometric Integration'),
+                    h('h2', null, 'Biometric Device API'),
+                    h('p', { className: 'muted' }, 'Register devices and generate API keys for biometric vendors (ZKTeco, etc.) to push attendance data.'),
+                  ]),
+                  h('button', { className: 'btn primary small', onClick: async () => {
+                    const name = prompt('Enter device name (e.g. Main ZKTeco):');
+                    if (!name) return;
+                    try {
+                      const result = await apiRequest('/api/biometric/register', token, {
+                        method: 'POST',
+                        body: JSON.stringify({ name, model: 'ZKTeco', location: 'Main Office' }),
+                      });
+                      setMessage('✅ Device registered! API Key: ' + result.device.apiKey);
+                      // Reload devices
+                      const devices = await apiRequest('/api/biometric/devices', token);
+                      setBiometricDevices(Array.isArray(devices) ? devices : []);
+                    } catch (err) {
+                      setMessage(err.error || 'Failed to register device');
+                    }
+                  } }, '➕ Register Device'),
+                  h('button', { className: 'btn secondary small', style: { marginLeft: '8px' }, onClick: async () => {
+                    try {
+                      const devices = await apiRequest('/api/biometric/devices', token);
+                      setBiometricDevices(Array.isArray(devices) ? devices : []);
+                      setMessage('Devices loaded');
+                    } catch (err) {
+                      setMessage(err.error || 'Failed to load devices');
+                    }
+                  } }, '🔄 Refresh'),
+                ]),
+              ]),
+              h('div', { className: 'grid', style: { gap: '12px' } },
+                biometricDevices && biometricDevices.length > 0
+                  ? biometricDevices.map((d) => h('div', { key: d.id, className: 'card', style: { padding: '16px', border: '1px solid var(--border)' } }, [
+                      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' } }, [
+                        h('div', null, [
+                          h('strong', { style: { fontSize: '15px' } }, d.name),
+                          h('p', { className: 'muted', style: { fontSize: '12px', margin: '4px 0' } }, 
+                            `${d.model || 'N/A'} · ${d.location || 'N/A'} · ${d.serialNumber || 'No SN'}`
+                          ),
+                        ]),
+                        h('span', { className: `badge ${d.isActive ? 'badge-success' : 'badge-rejected'} small` }, d.isActive ? 'Active' : 'Inactive'),
+                      ]),
+                      h('div', { style: { marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' } }, [
+                        h('span', { className: 'badge small' }, `${d.totalTransactions || 0} transactions`),
+                        d.lastSyncAt && h('span', { className: 'muted', style: { fontSize: '11px' } }, `Last sync: ${new Date(d.lastSyncAt).toLocaleString()}`),
+                      ]),
+                      h('div', { style: { marginTop: '10px', padding: '10px', background: 'var(--accent-soft)', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all' } }, [
+                        h('strong', null, 'API Key: '),
+                        h('span', null, d.apiKey || 'Hidden'),
+                      ]),
+                      h('div', { style: { marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' } }, [
+                        h('button', { className: 'btn white small', onClick: () => {
+                          const fullKey = prompt('Enter admin password to reveal full API key:');
+                          if (fullKey) setMessage('API key is shown in the device card above (masked). Use the Register button to create a new device to get a full key.');
+                        } }, '🔑 Show Key'),
+                        h('button', { className: 'btn red small', onClick: async () => {
+                          if (!window.confirm('Deactivate this device? It will stop accepting attendance data.')) return;
+                          try {
+                            await apiRequest('/api/biometric/devices/' + d.id, token, { method: 'DELETE' });
+                            setMessage('Device deactivated');
+                            const devices = await apiRequest('/api/biometric/devices', token);
+                            setBiometricDevices(Array.isArray(devices) ? devices : []);
+                          } catch (err) {
+                            setMessage(err.error || 'Failed to deactivate');
+                          }
+                        } }, '🗑️ Deactivate'),
+                      ]),
+                    ]))
+                  : h('div', { className: 'card' }, [
+                      h(EmptyState, { title: 'No devices registered', message: 'Click "Register Device" to create an API key for your biometric vendor.', actionLabel: 'Register Device', onAction: async () => {
+                        const name = prompt('Enter device name (e.g. Main ZKTeco):');
+                        if (!name) return;
+                        try {
+                          const result = await apiRequest('/api/biometric/register', token, {
+                            method: 'POST',
+                            body: JSON.stringify({ name, model: 'ZKTeco', location: 'Main Office' }),
+                          });
+                          setMessage('✅ Device registered! API Key: ' + result.device.apiKey);
+                          const devices = await apiRequest('/api/biometric/devices', token);
+                          setBiometricDevices(Array.isArray(devices) ? devices : []);
+                        } catch (err) {
+                          setMessage(err.error || 'Failed to register device');
+                        }
+                      } }),
+                    ])
+              ),
+              // API Documentation
+              h('div', { className: 'card', style: { marginTop: '12px' } }, [
+                h('div', { className: 'panel-heading' }, [
+                  h('div', null, [
+                    h('p', { className: 'eyebrow' }, '📖 API Documentation'),
+                    h('h3', null, 'How to Integrate'),
+                    h('p', { className: 'muted' }, 'Share these instructions with your biometric device vendor.'),
+                  ]),
+                ]),
+                h('div', { style: { padding: '12px', background: 'var(--input-bg)', borderRadius: '8px', fontSize: '13px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', lineHeight: '1.6' } }, [
+                  'POST https://reyadah-hr.onrender.com/api/biometric/attendance',
+                  'Headers:',
+                  '  X-API-Key: [your-api-key]',
+                  '  Content-Type: application/json',
+                  '',
+                  'Body (JSON):',
+                  JSON.stringify({
+                    deviceId: 'ZK-001',
+                    logs: [
+                      { employeeId: 'E001', punchTime: '2026-07-18T08:30:00', punchType: 'in', punchMode: 'fingerprint', verified: true },
+                      { employeeId: 'E001', punchTime: '2026-07-18T17:30:00', punchType: 'out', punchMode: 'fingerprint', verified: true },
+                    ]
+                  }, null, 2),
+                ].join('\n')),
               ]),
             ]),
             adminPage === 'tickets' && h('div', { className: 'leave-balance-shell' }, [
