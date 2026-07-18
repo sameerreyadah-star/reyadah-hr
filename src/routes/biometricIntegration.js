@@ -294,8 +294,8 @@ router.get('/devices', require('../middleware/auth'), asyncHandler(async (req, r
     order: [['createdAt', 'DESC']],
   });
 
-  // Mask API keys for security
-  const masked = devices.map(d => ({
+  // Return full API keys for admin management
+  const devicesList = devices.map(d => ({
     id: d.id,
     name: d.name,
     model: d.model,
@@ -305,11 +305,11 @@ router.get('/devices', require('../middleware/auth'), asyncHandler(async (req, r
     lastSyncAt: d.lastSyncAt,
     lastSyncStatus: d.lastSyncStatus,
     totalTransactions: d.totalTransactions,
-    apiKey: d.apiKey ? d.apiKey.slice(0, 8) + '...' : null,
+    apiKey: d.apiKey || null,
     createdAt: d.createdAt,
   }));
 
-  res.json(masked);
+  res.json(devicesList);
 }));
 
 /**
