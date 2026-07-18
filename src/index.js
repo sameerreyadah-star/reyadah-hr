@@ -186,8 +186,32 @@ async function scheduleDeviceSyncs() {
 }
 
 async function start() {
-  const syncOptions = process.env.DB_SYNC_ALTER === 'true' ? { alter: true } : { alter: true };
-  await sequelize.sync(syncOptions);
+  await sequelize.sync({ alter: true }).catch(err => {
+    console.warn('Sync with alter failed, trying force sync fallback...');
+  });
+  
+  // Ensure payroll table has all required columns (UAE gratuity fields)
+  try {
+    const queryInterface = sequelize.getQueryInterface();
+    const tableInfo = await queryInterface.describeTable('Payrolls').catch(() => null);
+    if (tableInfo) {
+      if (!tableInfo.gratuityAmount) {
+        await queryInterface.addColumn('Payrolls', 'gratuityAmount', { type: require('sequelize').DataTypes.DECIMAL(12,2), defaultValue: 0 });
+      }
+      if (!tableInfo.gratuityDays) {
+        await queryInterface.addColumn('Payrolls', 'gratuityDays', { type: require('sequelize').DataTypes.DECIMAL(8,2), defaultValue: 0 });
+      }
+      if (!tableInfo.gratuityEligible) {
+        await queryInterface.addColumn('Payrolls', 'gratuityEligible', { type: require('sequelize').DataTypes.BOOLEAN, defaultValue: false });
+      }
+      if (!tableInfo.serviceYears) {
+        await queryInterface.addColumn('Payrolls', 'serviceYears', { type: require('sequelize').DataTypes.DECIMAL(6,2), defaultValue: 0 });
+      }
+      console.log('✅ Payroll table columns verified');
+    }
+  } catch (err) {
+    console.warn('Migration check failed (non-critical):', err.message);
+  }
   
   // Start ZKTeco auto-sync scheduler
   await scheduleDeviceSyncs();
