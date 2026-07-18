@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
-const { Payroll, Employee, Attendance, Loan, Expense, WorkTiming } = require('../models');
+const { Payroll, Employee, Attendance, Loan, Expense } = require('../models');
 const { Op, literal } = require('sequelize');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 
@@ -288,7 +288,7 @@ router.get('/summary', auth, asyncHandler(async (req, res) => {
   });
 }));
 
-// ==================== RUN PAYROLL (Enhanced) ====================
+// ==================== RUN PAYROLL (UAE Labour Law Compliant) ====================
 router.post('/run', auth, asyncHandler(async (req, res) => {
   if (!canManagePayroll(req.user.role)) return res.status(403).json({ error: 'forbidden' });
   const { employeeId, month, year, allowances, deductions, notes } = req.body;
@@ -317,21 +317,14 @@ router.post('/run', auth, asyncHandler(async (req, res) => {
     return total;
   }, { presentDays: 0, absentDays: 0, weeklyOffDays: 0 });
 
-  // Salary breakdown
+  // Salary breakdown per UAE Labour Law
   const baseSalary = parseFloat(employee.salary || 0);
-  const housingPct = 0.25; // 25% housing
-  const transportPct = 0.10; // 10% transport
-  const foodPct = 0.05; // 5% food
-
-  const basicSalary = money(baseSalary * 0.60); // 60% basic
-  const housingAllowance = money(baseSalary * housingPct);
-  const transportAllowance = money(baseSalary * transportPct);
-  const foodAllowance = money(baseSalary * foodPct);
+  const basicSalary = money(baseSalary * 0.60); // 60% basic (UAE standard)
+  const housingAllowance = money(baseSalary * 0.25); // 25% housing
+  const transportAllowance = money(baseSalary * 0.10); // 10% transport
+  const foodAllowance = money(baseSalary * 0.05); // 5% food
   const otherAllowances = money(baseSalary - basicSalary - housingAllowance - transportAllowance - foodAllowance);
   const gross = money(baseSalary);
-
-  // Custom allowances from request
-  const customAllowances = allowances || {};
 
   // Deductions
   const absentDeduction = gross > 0 ? money(gross * (counts.absentDays / daysInMonth)) : 0;
@@ -349,6 +342,9 @@ router.post('/run', auth, asyncHandler(async (req, res) => {
   const advanceDeduction = money(customDeductions.advance || 0);
   const otherDeductions = money(customDeductions.other || 0);
 
+  // Calculate UAE Gratuity (Article 132)
+  const gratuity = calcUaeGratuity(basicSalary, employee.createdAt, new Date());
+
   const totalDeductions = money(absentDeduction + loanDeduction + insuranceDeduction + taxDeduction + advanceDeduction + otherDeductions);
   const net = money(Math.max(0, gross - totalDeductions));
 
@@ -356,6 +352,7 @@ router.post('/run', auth, asyncHandler(async (req, res) => {
     employeeId: employee.employeeId,
     employeeName: employee.name,
     designation: employee.designation,
+    joinDate: employee.createdAt,
     daysInMonth,
     presentDays: counts.presentDays,
     absentDays: counts.absentDays,
@@ -370,6 +367,12 @@ router.post('/run', auth, asyncHandler(async (req, res) => {
       paidInstallments: l.paidInstallments,
       totalInstallments: l.totalInstallments,
     })),
+    // UAE Gratuity Details
+    gratuity: {
+      ...gratuity,
+      basicSalary: money(basicSalary),
+      dailyBasic: money(basicSalary / 30),
+    },
     generatedBy: req.user.employeeId,
     generatedAt: new Date(),
     salaryBreakdown: {
@@ -393,45 +396,37 @@ router.post('/run', auth, asyncHandler(async (req, res) => {
     where: { employeeId: employee.id, month: period.month, year: period.year },
   });
 
+  const payslipData = {
+    basicSalary: money(basicSalary),
+    housingAllowance: money(housingAllowance),
+    transportAllowance: money(transportAllowance),
+    foodAllowance: money(foodAllowance),
+    otherAllowances: money(otherAllowances),
+    gross: money(gross),
+    absentDeduction: money(absentDeduction),
+    loanDeduction: money(loanDeduction),
+    advanceDeduction: money(advanceDeduction),
+    insuranceDeduction: money(insuranceDeduction),
+    taxDeduction: money(taxDeduction),
+    otherDeductions: money(otherDeductions),
+    totalDeductions: money(totalDeductions),
+    // Gratuity fields
+    gratuityAmount: money(gratuity.gratuityAmount),
+    gratuityDays: money(gratuity.gratuityDays),
+    gratuityEligible: gratuity.eligible,
+    serviceYears: money(gratuity.years + gratuity.months / 12 + gratuity.days / 365),
+    net: money(net),
+    details,
+    notes: notes || '',
+  };
+
   const payslip = existing
-    ? await existing.update({
-        basicSalary: money(basicSalary),
-        housingAllowance: money(housingAllowance),
-        transportAllowance: money(transportAllowance),
-        foodAllowance: money(foodAllowance),
-        otherAllowances: money(otherAllowances),
-        gross: money(gross),
-        absentDeduction: money(absentDeduction),
-        loanDeduction: money(loanDeduction),
-        advanceDeduction: money(advanceDeduction),
-        insuranceDeduction: money(insuranceDeduction),
-        taxDeduction: money(taxDeduction),
-        otherDeductions: money(otherDeductions),
-        totalDeductions: money(totalDeductions),
-        net: money(net),
-        details,
-        notes: notes || existing.notes || '',
-      })
+    ? await existing.update(payslipData)
     : await Payroll.create({
+        ...payslipData,
         employeeId: employee.id,
         month: period.month,
         year: period.year,
-        basicSalary: money(basicSalary),
-        housingAllowance: money(housingAllowance),
-        transportAllowance: money(transportAllowance),
-        foodAllowance: money(foodAllowance),
-        otherAllowances: money(otherAllowances),
-        gross: money(gross),
-        absentDeduction: money(absentDeduction),
-        loanDeduction: money(loanDeduction),
-        advanceDeduction: money(advanceDeduction),
-        insuranceDeduction: money(insuranceDeduction),
-        taxDeduction: money(taxDeduction),
-        otherDeductions: money(otherDeductions),
-        totalDeductions: money(totalDeductions),
-        net: money(net),
-        details,
-        notes: notes || '',
       });
 
   res.json(payslip);

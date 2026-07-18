@@ -19,6 +19,11 @@ module.exports = (sequelize) => {
     taxDeduction: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
     otherDeductions: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
     totalDeductions: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    // UAE Gratuity
+    gratuityAmount: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+    gratuityDays: { type: DataTypes.DECIMAL(8,2), defaultValue: 0 },
+    gratuityEligible: { type: DataTypes.BOOLEAN, defaultValue: false },
+    serviceYears: { type: DataTypes.DECIMAL(6,2), defaultValue: 0 },
     // Net
     net: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
     // Payment tracking
