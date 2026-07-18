@@ -326,8 +326,8 @@ router.delete('/devices/:id', require('../middleware/auth'), asyncHandler(async 
     return res.status(404).json({ error: 'Device not found' });
   }
 
-  await device.update({ isActive: false });
-  res.json({ success: true, message: 'Device deactivated' });
+  await device.destroy();
+  res.json({ success: true, message: 'Device deleted permanently' });
 }));
 
 module.exports = router;
