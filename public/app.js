@@ -736,6 +736,20 @@ function App() {
   const [eosTemplateUploadBusy, setEosTemplateUploadBusy] = useState(false);
   const [eosCompanies, setEosCompanies] = useState([]);
   const [biometricDevices, setBiometricDevices] = useState([]);
+  const [testApiKey, setTestApiKey] = useState('');
+  const [testEmployeeId, setTestEmployeeId] = useState('');
+  const [testClockIn, setTestClockIn] = useState(() => {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    return today + 'T08:00';
+  });
+  const [testClockOut, setTestClockOut] = useState(() => {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    return today + 'T17:00';
+  });
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState(null);
   const companyLogoSrc = `${COMPANY_LOGO_URL}?v=${companyLogoVersion}`;
 
   // Collapsible sidebar sections state
@@ -7240,6 +7254,131 @@ function App() {
                       } }),
                     ])
               ),
+              // Test Console
+              h('div', { className: 'card', style: { marginTop: '12px' } }, [
+                h('div', { className: 'panel-heading' }, [
+                  h('div', null, [
+                    h('p', { className: 'eyebrow' }, '🧪 Test Console'),
+                    h('h3', null, 'Test Biometric API'),
+                    h('p', { className: 'muted' }, 'Send test attendance data to verify the API works without a live device.'),
+                  ]),
+                ]),
+                h('div', { style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' } }, [
+                  h('label', { className: 'field' }, [
+                    'API Key (select a registered device above and copy its key)',
+                    h('input', {
+                      id: 'test-api-key',
+                      value: testApiKey,
+                      onChange: (e) => setTestApiKey(e.target.value),
+                      placeholder: 'rh_...',
+                      style: { fontFamily: 'monospace' },
+                    }),
+                  ]),
+                  h('label', { className: 'field' }, [
+                    'Employee ID',
+                    h('input', {
+                      id: 'test-employee-id',
+                      value: testEmployeeId,
+                      onChange: (e) => setTestEmployeeId(e.target.value),
+                      placeholder: 'E001',
+                    }),
+                  ]),
+                  h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } }, [
+                    h('label', { className: 'field', style: { flex: 1 } }, [
+                      'Clock In Time',
+                      h('input', {
+                        type: 'datetime-local',
+                        id: 'test-clock-in',
+                        value: testClockIn,
+                        onChange: (e) => setTestClockIn(e.target.value),
+                      }),
+                    ]),
+                    h('label', { className: 'field', style: { flex: 1 } }, [
+                      'Clock Out Time',
+                      h('input', {
+                        type: 'datetime-local',
+                        id: 'test-clock-out',
+                        value: testClockOut,
+                        onChange: (e) => setTestClockOut(e.target.value),
+                      }),
+                    ]),
+                  ]),
+                  h('div', { style: { display: 'flex', gap: '8px' } }, [
+                    h('button', {
+                      className: 'btn primary small',
+                      onClick: async () => {
+                        if (!testApiKey || !testEmployeeId) {
+                          setMessage('Enter API key and Employee ID first');
+                          return;
+                        }
+                        setTestBusy(true);
+                        setTestResult(null);
+                        const logs = [];
+                        if (testClockIn) {
+                          logs.push({
+                            employeeId: testEmployeeId,
+                            punchTime: new Date(testClockIn).toISOString(),
+                            punchType: 'in',
+                            punchMode: 'fingerprint',
+                            verified: true,
+                          });
+                        }
+                        if (testClockOut) {
+                          logs.push({
+                            employeeId: testEmployeeId,
+                            punchTime: new Date(testClockOut).toISOString(),
+                            punchType: 'out',
+                            punchMode: 'fingerprint',
+                            verified: true,
+                          });
+                        }
+                        if (logs.length === 0) {
+                          setMessage('Enter at least one clock time');
+                          setTestBusy(false);
+                          return;
+                        }
+                        try {
+                          const res = await fetch('/api/biometric/attendance', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'X-API-Key': testApiKey,
+                            },
+                            body: JSON.stringify({ deviceId: 'test-console', logs }),
+                          });
+                          const data = await res.json();
+                          setTestResult(JSON.stringify(data, null, 2));
+                          if (res.ok) {
+                            setMessage('✅ Test successful! Attendance recorded.');
+                            await loadAttendance();
+                          } else {
+                            setMessage('❌ Test failed: ' + (data.error || 'Unknown error'));
+                          }
+                        } catch (err) {
+                          setTestResult('Error: ' + err.message);
+                          setMessage('❌ Network error');
+                        } finally {
+                          setTestBusy(false);
+                        }
+                      },
+                      disabled: testBusy,
+                    }, testBusy ? '⏳ Sending...' : '🚀 Send Test Data'),
+                    h('button', {
+                      className: 'btn white small',
+                      onClick: () => {
+                        setTestResult(null);
+                        setTestApiKey('');
+                        setTestEmployeeId('');
+                        const now = new Date();
+                        const today = now.toISOString().slice(0, 10);
+                        setTestClockIn(today + 'T08:00');
+                        setTestClockOut(today + 'T17:00');
+                      },
+                    }, 'Clear'),
+                  ]),
+                  testResult && h('div', { style: { marginTop: '8px', padding: '10px', background: '#1a1a1a', color: '#4caf50', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto' } }, testResult),
+                ]),
+              ]),
               // API Documentation
               h('div', { className: 'card', style: { marginTop: '12px' } }, [
                 h('div', { className: 'panel-heading' }, [
