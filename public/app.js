@@ -896,8 +896,9 @@ function App() {
   async function loadPayslips() {
     if (!token || !user) return;
     try {
-      const records = await apiRequest(`/api/payroll/${user.employeeId}`, token);
-      setPayslips(Array.isArray(records) ? records : []);
+      const data = await apiRequest(`/api/payroll/${user.employeeId}`, token);
+      // API returns { employee, payrolls, activeLoans, pendingExpenses, summary }
+      setPayslips(Array.isArray(data.payrolls) ? data.payrolls : []);
     } catch (err) {
       setPayslips([]);
     }
@@ -906,8 +907,9 @@ function App() {
   async function loadPayrollForEmployee(employeeId) {
     if (!token || !employeeId) return;
     try {
-      const records = await apiRequest(`/api/payroll/${employeeId}`, token);
-      setTeamPayslips(Array.isArray(records) ? records : []);
+      const data = await apiRequest(`/api/payroll/${employeeId}`, token);
+      // API returns { employee, payrolls, activeLoans, pendingExpenses, summary }
+      setTeamPayslips(Array.isArray(data.payrolls) ? data.payrolls : []);
     } catch (err) {
       setTeamPayslips([]);
       setMessage(err.error || 'Failed to load payroll records');
