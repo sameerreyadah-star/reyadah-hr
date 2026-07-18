@@ -186,7 +186,7 @@ async function scheduleDeviceSyncs() {
 }
 
 async function start() {
-  const syncOptions = process.env.DB_SYNC_ALTER === 'true' ? { alter: true } : {};
+  const syncOptions = process.env.DB_SYNC_ALTER === 'true' ? { alter: true } : { alter: true };
   await sequelize.sync(syncOptions);
   
   // Start ZKTeco auto-sync scheduler
