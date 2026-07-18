@@ -884,14 +884,25 @@ router.put('/:employeeId', auth, asyncHandler(async (req, res) => {
   const employee = await Employee.findOne({ where: { employeeId: req.params.employeeId } });
   if (!employee) return res.status(404).json({ error: 'employee not found' });
 
-  const { name, email, salary, role, designation, password } = req.body;
+  const { name, email, salary, role, designation, password, phone, nationality, department } = req.body;
   const updates = {
     name: name !== undefined ? name : employee.name,
     email: email !== undefined ? email : employee.email,
     salary: salary !== undefined ? salary : employee.salary,
     role: role !== undefined ? role : employee.role,
     designation: designation !== undefined ? designation : employee.designation,
+    phone: phone !== undefined ? phone : employee.phone,
+    nationality: nationality !== undefined ? nationality : employee.nationality,
+    department: department !== undefined ? department : employee.department,
   };
+
+  // Handle JSON fields (visaInfo, contractInfo, bankDetails, emergencyContact)
+  const jsonFields = ['visaInfo', 'contractInfo', 'bankDetails', 'emergencyContact'];
+  for (const field of jsonFields) {
+    if (req.body[field] !== undefined) {
+      updates[field] = req.body[field];
+    }
+  }
 
   if (password) {
     const salt = await bcrypt.genSalt(10);

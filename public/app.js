@@ -1520,6 +1520,13 @@ function App() {
           designation: newEmployee.designation,
           salary: newEmployee.salary,
           role: newEmployee.role,
+          phone: newEmployee.phone || '',
+          nationality: newEmployee.nationality || '',
+          department: newEmployee.department || '',
+          visaInfo: newEmployee.visaInfo || {},
+          contractInfo: newEmployee.contractInfo || {},
+          bankDetails: newEmployee.bankDetails || {},
+          emergencyContact: newEmployee.emergencyContact || {},
         };
         if (newEmployee.password) {
           payload.password = newEmployee.password;
@@ -6175,7 +6182,7 @@ function App() {
               h('div', { className: 'card' }, [
                 h('h2', null, 'Employee management'),
                 h('div', { className: 'form-grid' }, [
-                  ['employeeId','name','email','designation','salary','password','role'].map((field) => h('label', { className: 'field', key: field }, [
+                  ['employeeId','name','email','phone','nationality','department','designation','salary','password','role'].map((field) => h('label', { className: 'field', key: field }, [
                     field === 'role' ? 'Role' : field.charAt(0).toUpperCase() + field.slice(1),
                     field === 'role'
                       ? h('select', { value: newEmployee.role, onChange: (e) => setNewEmployee((prev) => ({ ...prev, role: e.target.value })) }, [
@@ -6186,13 +6193,34 @@ function App() {
                         ])
                       : h('input', {
                           type: field === 'password' ? 'password' : 'text',
-                          value: newEmployee[field],
+                          value: newEmployee[field] || '',
                           onChange: (e) => setNewEmployee((prev) => ({ ...prev, [field]: e.target.value })),
                           placeholder: field === 'employeeId' ? 'E002' : field.charAt(0).toUpperCase() + field.slice(1),
                           disabled: editEmployeeId && field === 'employeeId',
                         }),
                     field === 'password' && h('p', { className: 'muted', style: { fontSize: '12px', marginTop: '8px' } }, 'Password must be 12+ chars with uppercase, lowercase, numbers, and symbols.'),
                   ])),
+                  // Visa & Contract fields
+                  h('div', { style: { gridColumn: 'span 2', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '8px' } }, [
+                    h('strong', null, '🛂 Visa & Contract'),
+                  ]),
+                  h('label', { className: 'field' }, ['Passport No', h('input', { value: newEmployee.visaInfo?.passportNo || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, visaInfo: { ...(prev.visaInfo || {}), passportNo: e.target.value } })), placeholder: 'Passport number' })]),
+                  h('label', { className: 'field' }, ['Passport Expiry', h('input', { type: 'date', value: newEmployee.visaInfo?.passportExpiry || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, visaInfo: { ...(prev.visaInfo || {}), passportExpiry: e.target.value } })) })]),
+                  h('label', { className: 'field' }, ['Visa Expiry', h('input', { type: 'date', value: newEmployee.visaInfo?.visaExpiry || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, visaInfo: { ...(prev.visaInfo || {}), visaExpiry: e.target.value } })) })]),
+                  h('label', { className: 'field' }, ['Emirates ID', h('input', { value: newEmployee.visaInfo?.emiratesId || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, visaInfo: { ...(prev.visaInfo || {}), emiratesId: e.target.value } })), placeholder: 'Emirates ID number' })]),
+                  h('label', { className: 'field' }, ['Contract Type', h('input', { value: newEmployee.contractInfo?.contractType || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, contractInfo: { ...(prev.contractInfo || {}), contractType: e.target.value } })), placeholder: 'Limited/Unlimited' })]),
+                  h('label', { className: 'field' }, ['Probation End', h('input', { type: 'date', value: newEmployee.contractInfo?.probationEnd || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, contractInfo: { ...(prev.contractInfo || {}), probationEnd: e.target.value } })) })]),
+                  h('label', { className: 'field' }, ['Contract End', h('input', { type: 'date', value: newEmployee.contractInfo?.contractEnd || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, contractInfo: { ...(prev.contractInfo || {}), contractEnd: e.target.value } })) })]),
+                  // Bank & Emergency fields
+                  h('div', { style: { gridColumn: 'span 2', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '8px' } }, [
+                    h('strong', null, '💰 Bank & Emergency Contact'),
+                  ]),
+                  h('label', { className: 'field' }, ['Bank Name', h('input', { value: newEmployee.bankDetails?.bankName || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, bankDetails: { ...(prev.bankDetails || {}), bankName: e.target.value } })), placeholder: 'Bank name' })]),
+                  h('label', { className: 'field' }, ['Account No', h('input', { value: newEmployee.bankDetails?.accountNumber || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, bankDetails: { ...(prev.bankDetails || {}), accountNumber: e.target.value } })), placeholder: 'Account number' })]),
+                  h('label', { className: 'field' }, ['IBAN', h('input', { value: newEmployee.bankDetails?.iban || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, bankDetails: { ...(prev.bankDetails || {}), iban: e.target.value } })), placeholder: 'IBAN' })]),
+                  h('label', { className: 'field' }, ['Emergency Name', h('input', { value: newEmployee.emergencyContact?.name || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, emergencyContact: { ...(prev.emergencyContact || {}), name: e.target.value } })), placeholder: 'Emergency contact name' })]),
+                  h('label', { className: 'field' }, ['Emergency Phone', h('input', { value: newEmployee.emergencyContact?.phone || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, emergencyContact: { ...(prev.emergencyContact || {}), phone: e.target.value } })), placeholder: 'Emergency phone' })]),
+                  h('label', { className: 'field' }, ['Emergency Relation', h('input', { value: newEmployee.emergencyContact?.relation || '', onChange: (e) => setNewEmployee(prev => ({ ...prev, emergencyContact: { ...(prev.emergencyContact || {}), relation: e.target.value } })), placeholder: 'Spouse, Parent, etc.' })]),
                 ]),
                 h('label', { className: 'field' }, ['Photo (passport)', h('input', { type: 'file', accept: 'image/*', onChange: (e) => setEmployeePhotoFile(e.target.files[0]), disabled: !editEmployeeId })]),
                 h('div', { className: 'form-actions' }, [
