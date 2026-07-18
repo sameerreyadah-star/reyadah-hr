@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
-const { Payroll, Employee, Attendance, Loan, Expense } = require('../models');
-const { Op } = require('sequelize');
+const { Payroll, Employee, Attendance, Loan, Expense, WorkTiming } = require('../models');
+const { Op, literal } = require('sequelize');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 
 function canManagePayroll(role) {
@@ -24,6 +24,130 @@ function parsePayrollPeriod(month, year) {
 
 function money(value) {
   return Number.parseFloat(Number(value || 0).toFixed(2));
+}
+
+/**
+ * UAE Labour Law Calculations
+ */
+
+// Calculate hourly rate from basic salary (2080 hours/year = 48 weeks * ~43.33 hrs/week)
+function calcHourlyRate(basicSalary) {
+  return basicSalary / (30 * 8); // monthly basic / (30 days * 8 hours)
+}
+
+/**
+ * UAE Gratuity Calculation (Article 132 of UAE Labour Law)
+ * - Less than 1 year: No gratuity
+ * - 1-5 years: 21 days basic pay per year
+ * - 5+ years: 30 days basic pay per year
+ * - Maximum: 2 years total salary
+ */
+function calcUaeGratuity(basicSalary, joinDate, endDate = new Date()) {
+  if (!joinDate) return { years: 0, months: 0, days: 0, gratuityDays: 0, gratuityAmount: 0, eligible: false };
+  
+  const start = new Date(joinDate);
+  const end = new Date(endDate);
+  if (start >= end) return { years: 0, months: 0, days: 0, gratuityDays: 0, gratuityAmount: 0, eligible: false };
+
+  // Calculate total service
+  let totalDays = Math.floor((end - start) / (1000 * 60 * 60 * 24));
+  const years = Math.floor(totalDays / 365);
+  totalDays %= 365;
+  const months = Math.floor(totalDays / 30);
+  const days = totalDays % 30;
+
+  // Gratuity per day (basic salary / 30)
+  const dailyBasic = basicSalary / 30;
+  
+  let gratuityDays = 0;
+  let eligible = false;
+
+  if (years >= 1 && years < 5) {
+    // 21 days per year for first 5 years
+    gratuityDays = years * 21 + (months * 21 / 12);
+    eligible = true;
+  } else if (years >= 5) {
+    // 30 days per year after 5 years
+    gratuityDays = 5 * 21 + (years - 5) * 30 + (months * 30 / 12);
+    eligible = true;
+  }
+
+  // Cap at 2 years salary (730 days)
+  const maxGratuityDays = 730; // 2 years * 365 days
+  const finalGratuityDays = Math.min(gratuityDays, maxGratuityDays);
+  
+  const gratuityAmount = eligible ? dailyBasic * finalGratuityDays : 0;
+
+  return {
+    years,
+    months,
+    days,
+    totalServiceDays: Math.floor((end - start) / (1000 * 60 * 60 * 24)),
+    gratuityDays: money(finalGratuityDays),
+    gratuityAmount: money(gratuityAmount),
+    eligible,
+    dailyBasic: money(dailyBasic),
+  };
+}
+
+/**
+ * Overtime Calculation (UAE Law Article 67-69)
+ * - Normal overtime (weekday): 125% of hourly rate
+ * - Weekend overtime: 150% of hourly rate
+ * - 11 PM - 4 AM: Additional 50% (total 175% or 200%)
+ */
+function calcUaeOvertime(overtimeHours, overtimeType) {
+  // Overtime type: 'normal' (125%), 'weekend' (150%), 'night' (150-200%)
+  const multiplier = overtimeType === 'weekend' ? 1.5 : overtimeType === 'night' ? 1.75 : 1.25;
+  return { hours: overtimeHours, multiplier, overtimeAmount: 0 }; // amount calculated with hourly rate
+}
+
+/**
+ * Sick Leave Pay (UAE Law Article 83)
+ * - First 15 days: Full pay
+ * - Next 30 days: Half pay  
+ * - Next 45 days: No pay (unpaid)
+ * Total: 90 days per year maximum
+ */
+function calcSickLeavePay(basicSalary, sickDaysUsed, sickDaysInMonth) {
+  let payPercent = 0;
+  
+  // Calculate running total including this month
+  const totalSickDays = (sickDaysUsed || 0) + sickDaysInMonth;
+  
+  if (totalSickDays <= 15) {
+    payPercent = 1.0; // Full pay
+  } else if (totalSickDays <= 45) {
+    payPercent = 0.5; // Half pay
+  } else {
+    payPercent = 0; // No pay
+  }
+
+  const dailyBasic = basicSalary / 30;
+  return money(dailyBasic * sickDaysInMonth * payPercent);
+}
+
+/**
+ * Annual Leave Encashment (UAE Law Article 75)
+ * When an employee leaves, unused annual leave days are paid at basic salary rate
+ */
+function calcAnnualLeaveEncashment(basicSalary, unusedLeaveDays) {
+  const dailyBasic = basicSalary / 30;
+  return money(dailyBasic * unusedLeaveDays);
+}
+
+/**
+ * Social Insurance (GCC Nationals - Optional)
+ * Some UAE companies contribute to GPSSA for GCC nationals
+ * Employee: 5% of gross
+ * Employer: 15% of gross (not deducted from employee)
+ */
+function calcSocialInsurance(gross, isGccNational = false) {
+  if (!isGccNational) return { employeeShare: 0, employerShare: 0 };
+  return {
+    employeeShare: money(gross * 0.05),
+    employerShare: money(gross * 0.15), // Employer pays separately
+  };
 }
 
 // ==================== SEARCH EMPLOYEES WITH FULL PAYROLL DETAILS ====================
