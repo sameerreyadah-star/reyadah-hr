@@ -7206,24 +7206,20 @@ function App() {
                       ]),
                       h('div', { style: { marginTop: '10px', padding: '10px', background: 'var(--accent-soft)', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all' } }, [
                         h('strong', null, 'API Key: '),
-                        h('span', null, d.apiKey || 'Hidden'),
+                        h('span', { style: { color: 'var(--accent)', fontWeight: 600 } }, d.apiKey || 'N/A'),
                       ]),
                       h('div', { style: { marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' } }, [
-                        h('button', { className: 'btn white small', onClick: () => {
-                          const fullKey = prompt('Enter admin password to reveal full API key:');
-                          if (fullKey) setMessage('API key is shown in the device card above (masked). Use the Register button to create a new device to get a full key.');
-                        } }, '🔑 Show Key'),
                         h('button', { className: 'btn red small', onClick: async () => {
-                          if (!window.confirm('Deactivate this device? It will stop accepting attendance data.')) return;
+                          if (!window.confirm('Delete this device permanently? This cannot be undone.')) return;
                           try {
                             await apiRequest('/api/biometric/devices/' + d.id, token, { method: 'DELETE' });
-                            setMessage('Device deactivated');
+                            setMessage('Device deleted');
                             const devices = await apiRequest('/api/biometric/devices', token);
                             setBiometricDevices(Array.isArray(devices) ? devices : []);
                           } catch (err) {
-                            setMessage(err.error || 'Failed to deactivate');
+                            setMessage(err.error || 'Failed to delete device');
                           }
-                        } }, '🗑️ Deactivate'),
+                        } }, '🗑️ Delete'),
                       ]),
                     ]))
                   : h('div', { className: 'card' }, [
