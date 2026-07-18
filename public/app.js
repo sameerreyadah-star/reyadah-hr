@@ -6150,24 +6150,25 @@ function App() {
                   h('div', null, [h('p', { className: 'detail-label' }, 'Salary'), h('p', null, `AED ${selectedEmployeeDetails.salary || 0}`)]),
                   h('div', null, [h('p', { className: 'detail-label' }, 'Joined Date'), h('p', null, selectedEmployeeDetails.createdAt ? new Date(selectedEmployeeDetails.createdAt).toLocaleDateString() : '—')]),
                 ]),
-                // Visa & Contract Info
-                (selectedEmployeeDetails.visaInfo || selectedEmployeeDetails.contractInfo) && h('div', { className: 'profile-detail-grid', style: { marginTop: '12px', padding: '12px', background: 'var(--accent-soft)', borderRadius: '8px' } }, [
+                // Visa & Contract Info - Always visible
+                h('div', { className: 'profile-detail-grid', style: { marginTop: '12px', padding: '12px', background: 'var(--accent-soft)', borderRadius: '8px' } }, [
                   h('div', { style: { gridColumn: 'span 2' } }, [h('strong', null, '🛂 Visa & Contract')]),
-                  selectedEmployeeDetails.visaInfo?.passportNo && h('div', null, [h('p', { className: 'detail-label' }, 'Passport No'), h('p', null, selectedEmployeeDetails.visaInfo.passportNo)]),
-                  selectedEmployeeDetails.visaInfo?.passportExpiry && h('div', null, [h('p', { className: 'detail-label' }, 'Passport Expiry'), h('p', null, selectedEmployeeDetails.visaInfo.passportExpiry)]),
-                  selectedEmployeeDetails.visaInfo?.visaExpiry && h('div', null, [h('p', { className: 'detail-label' }, 'Visa Expiry'), h('p', null, selectedEmployeeDetails.visaInfo.visaExpiry)]),
-                  selectedEmployeeDetails.visaInfo?.emiratesId && h('div', null, [h('p', { className: 'detail-label' }, 'Emirates ID'), h('p', null, selectedEmployeeDetails.visaInfo.emiratesId)]),
-                  selectedEmployeeDetails.contractInfo?.contractType && h('div', null, [h('p', { className: 'detail-label' }, 'Contract Type'), h('p', null, selectedEmployeeDetails.contractInfo.contractType)]),
-                  selectedEmployeeDetails.contractInfo?.probationEnd && h('div', null, [h('p', { className: 'detail-label' }, 'Probation End'), h('p', null, new Date(selectedEmployeeDetails.contractInfo.probationEnd).toLocaleDateString())]),
-                  selectedEmployeeDetails.contractInfo?.contractEnd && h('div', null, [h('p', { className: 'detail-label' }, 'Contract End'), h('p', null, new Date(selectedEmployeeDetails.contractInfo.contractEnd).toLocaleDateString())]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Passport No'), h('p', null, selectedEmployeeDetails.visaInfo?.passportNo || '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Passport Expiry'), h('p', null, selectedEmployeeDetails.visaInfo?.passportExpiry || '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Visa Expiry'), h('p', null, selectedEmployeeDetails.visaInfo?.visaExpiry || '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Emirates ID'), h('p', null, selectedEmployeeDetails.visaInfo?.emiratesId || '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Contract Type'), h('p', null, selectedEmployeeDetails.contractInfo?.contractType || '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Probation End'), h('p', null, selectedEmployeeDetails.contractInfo?.probationEnd ? new Date(selectedEmployeeDetails.contractInfo.probationEnd).toLocaleDateString() : '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Contract End'), h('p', null, selectedEmployeeDetails.contractInfo?.contractEnd ? new Date(selectedEmployeeDetails.contractInfo.contractEnd).toLocaleDateString() : '—')]),
                 ]),
-                // Bank & Emergency Details
-                (selectedEmployeeDetails.bankDetails || selectedEmployeeDetails.emergencyContact) && h('div', { className: 'profile-detail-grid', style: { marginTop: '12px', padding: '12px', background: 'var(--input-bg)', borderRadius: '8px' } }, [
-                  selectedEmployeeDetails.bankDetails?.bankName && h('div', null, [h('p', { className: 'detail-label' }, 'Bank Name'), h('p', null, selectedEmployeeDetails.bankDetails.bankName)]),
-                  selectedEmployeeDetails.bankDetails?.accountNumber && h('div', null, [h('p', { className: 'detail-label' }, 'Account No'), h('p', null, selectedEmployeeDetails.bankDetails.accountNumber)]),
-                  selectedEmployeeDetails.bankDetails?.iban && h('div', null, [h('p', { className: 'detail-label' }, 'IBAN'), h('p', null, selectedEmployeeDetails.bankDetails.iban)]),
-                  selectedEmployeeDetails.emergencyContact?.name && h('div', null, [h('p', { className: 'detail-label' }, 'Emergency Contact'), h('p', null, `${selectedEmployeeDetails.emergencyContact.name} (${selectedEmployeeDetails.emergencyContact.relation || '—'})`)]),
-                  selectedEmployeeDetails.emergencyContact?.phone && h('div', null, [h('p', { className: 'detail-label' }, 'Emergency Phone'), h('p', null, selectedEmployeeDetails.emergencyContact.phone)]),
+                // Bank & Emergency Details - Always visible
+                h('div', { className: 'profile-detail-grid', style: { marginTop: '12px', padding: '12px', background: 'var(--input-bg)', borderRadius: '8px' } }, [
+                  h('div', { style: { gridColumn: 'span 2' } }, [h('strong', null, '💰 Bank & Emergency Contact')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Bank Name'), h('p', null, selectedEmployeeDetails.bankDetails?.bankName || '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Account No'), h('p', null, selectedEmployeeDetails.bankDetails?.accountNumber || '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'IBAN'), h('p', null, selectedEmployeeDetails.bankDetails?.iban || '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Emergency Contact'), h('p', null, selectedEmployeeDetails.emergencyContact?.name ? `${selectedEmployeeDetails.emergencyContact.name} (${selectedEmployeeDetails.emergencyContact.relation || '—'})` : '—')]),
+                  h('div', null, [h('p', { className: 'detail-label' }, 'Emergency Phone'), h('p', null, selectedEmployeeDetails.emergencyContact?.phone || '—')]),
                 ]),
                 h('div', { className: 'form-actions', style: { marginTop: '16px' } }, [h('button', { className: 'btn primary small', onClick: () => prepareEmployeeEdit(selectedEmployeeDetails) }, 'Edit Employee')]),
               ]),
