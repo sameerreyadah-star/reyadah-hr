@@ -22,6 +22,7 @@ const eosRoutes = require('./routes/eos');
 const employeesManagementRoutes = require('./routes/employeesManagement');
 const workTimingRoutes = require('./routes/workTiming');
 const biometricIntegrationRoutes = require('./routes/biometricIntegration');
+const shiftRosterRoutes = require('./routes/shiftRoster');
 
 const syncService = require('./services/syncService');
 const zktecoService = require('./services/zktecoService');
@@ -138,6 +139,7 @@ app.use('/api/eos', eosRoutes);
 app.use('/api/employees-management', employeesManagementRoutes);
 app.use('/api/work-timings', workTimingRoutes);
 app.use('/api/biometric', biometricIntegrationRoutes);
+app.use('/api/shift-roster', shiftRosterRoutes);
 
 // error handling
 app.use((err, req, res, next) => {
