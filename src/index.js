@@ -153,6 +153,12 @@ app.use('/images', express.static(path.join(__dirname, '..', 'images')));
 // serve frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// Serve shift-roster SPA
+app.use('/shift-roster', express.static(path.join(__dirname, '..', 'public', 'shift-roster')));
+app.get('/shift-roster/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'shift-roster', 'index.html'));
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Schedule auto-sync for ZKTeco devices

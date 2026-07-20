@@ -2612,7 +2612,7 @@ function App() {
             h(NavButton, { label: 'Attendance', icon: 'AT', active: tab === 'attendance', onClick: () => setTab('attendance') }),
             canView('attendance-info') && h(NavButton, { label: 'Attendance Info', icon: 'AI', active: tab === 'attendance-info', onClick: () => setTab('attendance-info') }),
             canView('attendance-editor') && h(NavButton, { label: 'Manual Editor', icon: 'ME', active: tab === 'attendance-editor', onClick: () => setTab('attendance-editor') }),
-            canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', active: tab === 'shift-roster', onClick: () => setTab('shift-roster') }),
+canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', active: tab === 'shift-roster', onClick: () => { window.location.href = '/shift-roster'; } }),
           ]),
         ]),
 
@@ -6496,42 +6496,14 @@ function App() {
               ]),
             ]),
 
-            adminPage === 'assignShift' && h('div', { className: 'card' }, [
+adminPage === 'assignShift' && h('div', { className: 'card' }, [
               h('div', { className: 'panel-heading' }, [
                 h('div', null, [
                   h('p', { className: 'eyebrow' }, 'Shift Roster'),
-                  h('h2', null, 'Assign Shift to Employee'),
-                  h('p', { className: 'muted' }, 'Select an employee and manage their shift schedule.'),
+                  h('h2', null, 'Advanced Shift Roster'),
+                  h('p', { className: 'muted' }, 'Open the new Shift Roster Management module to create, assign, and manage shifts.'),
                 ]),
-              ]),
-              h('label', { className: 'field' }, [
-                'Employee',
-                h('select', {
-                  value: selectedEmployeeId,
-                  onChange: (event) => {
-                    setSelectedEmployeeId(event.target.value);
-                    if (event.target.value) loadEmployeeDetails(event.target.value);
-                  },
-                }, [
-                  h('option', { value: '' }, 'Select employee'),
-                  employees.map((emp) => h('option', { key: emp.id, value: emp.employeeId }, `${emp.name} (${emp.employeeId})`)),
-                ]),
-              ]),
-              selectedEmployeeId && h('div', { className: 'form-grid' }, [
-                h('label', { className: 'field' }, ['Shift name', h('input', { value: employeeShift.shiftName, onChange: (e) => setEmployeeShift(prev => ({ ...prev, shiftName: e.target.value })), placeholder: 'e.g. Morning Shift' })]),
-                h('label', { className: 'field' }, ['Start time', h('input', { type: 'time', value: employeeShift.startTime, onChange: (e) => setEmployeeShift(prev => ({ ...prev, startTime: e.target.value })) })]),
-                h('label', { className: 'field' }, ['End time', h('input', { type: 'time', value: employeeShift.endTime, onChange: (e) => setEmployeeShift(prev => ({ ...prev, endTime: e.target.value })) })]),
-                h('label', { className: 'field' }, ['Notes', h('textarea', { value: employeeShift.notes, onChange: (e) => setEmployeeShift(prev => ({ ...prev, notes: e.target.value })), rows: 3, placeholder: 'Additional shift notes' })]),
-              ]),
-              h('div', { className: 'form-actions' }, [
-                h('button', { className: 'btn primary', onClick: updateShift, disabled: !selectedEmployeeId }, 'Save Shift'),
-              ]),
-              selectedEmployeeDetails && selectedEmployeeDetails.shiftRoster && selectedEmployeeDetails.shiftRoster.shiftName && h('div', { className: 'doc-item shift-item', style: { marginTop: '16px' } }, [
-                h('div', null, [
-                  h('strong', null, selectedEmployeeDetails.shiftRoster.shiftName),
-                  h('p', { className: 'muted' }, `${selectedEmployeeDetails.shiftRoster.startTime || '—'} to ${selectedEmployeeDetails.shiftRoster.endTime || '—'}`),
-                  selectedEmployeeDetails.shiftRoster.notes && h('p', { className: 'muted' }, selectedEmployeeDetails.shiftRoster.notes),
-                ]),
+                h('button', { className: 'btn primary', onClick: () => { window.location.href = '/shift-roster'; } }, '🚀 Open Shift Roster'),
               ]),
             ]),
 
