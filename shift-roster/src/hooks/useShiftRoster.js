@@ -10,7 +10,6 @@ export function useShiftRoster() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Default shifts
   const defaultShifts = [
     { id: 'SHIFT001', name: 'Morning Shift', code: 'MORN', startTime: '06:00', endTime: '14:00', color: '#3B82F6' },
     { id: 'SHIFT002', name: 'Evening Shift', code: 'EVEN', startTime: '14:00', endTime: '22:00', color: '#8B5CF6' },
@@ -22,10 +21,9 @@ export function useShiftRoster() {
     setLoading(true);
     setError(null);
     try {
-      // Check if user is authenticated
       const token = localStorage.getItem('reyadahToken');
       if (!token) {
-        setError('Please log in first');
+        setError('Please log in to the HR portal first, then refresh this page.');
         setLoading(false);
         return;
       }
@@ -35,16 +33,21 @@ export function useShiftRoster() {
         fetchAssignments(month, year),
       ]);
 
-      setEmployees(emps);
-      setAssignments(assigns);
+      if (!emps || emps.length === 0) {
+        setError('No employees found in your system. Add employees from the HR portal first.');
+        setEmployees([]);
+      } else {
+        setEmployees(emps);
+      }
+      
+      setAssignments(assigns || []);
       setShifts(defaultShifts);
+      setError(null);
     } catch (err) {
       console.error('Failed to load shift roster data:', err);
-      setError(err.message || 'Failed to load employee data');
-      // Fall back to mock data if API fails
-      const { mockEmployees, mockShiftAssignments } = await import('../data/mockData');
-      setEmployees(mockEmployees);
-      setAssignments(mockShiftAssignments);
+      setError('Could not load employee data from server. Make sure you are logged in and try again.');
+      setEmployees([]);
+      setAssignments([]);
       setShifts(defaultShifts);
     } finally {
       setLoading(false);
@@ -54,7 +57,6 @@ export function useShiftRoster() {
   const handleAssignShift = async (assignmentData) => {
     const { employeeId, date, shiftId } = assignmentData;
 
-    // Check duplicate
     const duplicate = assignments.find(
       a => a.employeeId === employeeId && a.date === date && a.shiftId === shiftId
     );
@@ -63,7 +65,6 @@ export function useShiftRoster() {
       return false;
     }
 
-    // Check overlapping
     const shift = shifts.find(s => s.id === shiftId);
     const existingOnDate = assignments.filter(
       a => a.employeeId === employeeId && a.date === date
@@ -83,6 +84,8 @@ export function useShiftRoster() {
         id: `ASSIGN${Date.now()}`,
         ...assignmentData,
       };
+      // Remove old assignment for same employee+date if exists
+      setAssignments(prev => prev.filter(a => !(a.employeeId === employeeId && a.date === date)));
       setAssignments(prev => [...prev, newAssignment]);
       addToast('Shift assigned successfully', 'success');
       return true;
