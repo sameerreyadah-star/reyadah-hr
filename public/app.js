@@ -2612,7 +2612,7 @@ function App() {
             h(NavButton, { label: 'Attendance', icon: 'AT', active: tab === 'attendance', onClick: () => setTab('attendance') }),
             canView('attendance-info') && h(NavButton, { label: 'Attendance Info', icon: 'AI', active: tab === 'attendance-info', onClick: () => setTab('attendance-info') }),
             canView('attendance-editor') && h(NavButton, { label: 'Manual Editor', icon: 'ME', active: tab === 'attendance-editor', onClick: () => setTab('attendance-editor') }),
-canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', active: tab === 'shift-roster', onClick: () => { window.location.href = '/shift-roster'; } }),
+canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', active: tab === 'shift-roster', onClick: () => { window.open('/shift-roster?token=' + encodeURIComponent(token), '_blank'); } }),
           ]),
         ]),
 

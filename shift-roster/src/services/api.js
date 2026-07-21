@@ -1,6 +1,14 @@
 const API_BASE = '/api';
 
 function getToken() {
+  // First check URL query parameter (passed when opening from main app)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken = urlParams.get('token');
+  if (urlToken) {
+    localStorage.setItem('reyadahToken', urlToken);
+    return urlToken;
+  }
+  // Fall back to localStorage
   return localStorage.getItem('reyadahToken') || '';
 }
 
