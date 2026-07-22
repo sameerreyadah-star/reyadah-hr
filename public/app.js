@@ -750,6 +750,20 @@ function App() {
   });
   const [testBusy, setTestBusy] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  // Shift Roster inline state
+  const [srShifts, setSrShifts] = useState([
+    { id: 'MORN', name: 'Morning', start: '06:00', end: '14:00', color: '#3B82F6' },
+    { id: 'EVEN', name: 'Evening', start: '14:00', end: '22:00', color: '#8B5CF6' },
+    { id: 'NIGHT', name: 'Night', start: '22:00', end: '06:00', color: '#1F2937' },
+    { id: 'GEN', name: 'General', start: '09:00', end: '18:00', color: '#2563EB' },
+  ]);
+  const [srAssignments, setSrAssignments] = useState({});
+  const [srLoading, setSrLoading] = useState(false);
+  const [srMonth, setSrMonth] = useState(new Date().getMonth());
+  const [srYear, setSrYear] = useState(new Date().getFullYear());
+  const [srEditing, setSrEditing] = useState(null);
+  const [srSaving, setSrSaving] = useState(false);
+  const [srError, setSrError] = useState('');
   const companyLogoSrc = `${COMPANY_LOGO_URL}?v=${companyLogoVersion}`;
 
   // Collapsible sidebar sections state
@@ -2986,7 +3000,7 @@ canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', act
             ]),
           ]),
         ]),
-tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid', style: { width: '100%', height: 'calc(100vh - 120px)', overflow: 'hidden' } }, [
+tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid', style: { width: '100%', height: 'calc(100vh - 140px)', overflow: 'hidden' } }, [
           h('iframe', {
             src: '/shift-roster?token=' + encodeURIComponent(token),
             style: { width: '100%', height: '100%', border: 'none', borderRadius: '12px' },
