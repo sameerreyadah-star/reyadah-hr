@@ -3000,11 +3000,80 @@ canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', act
             ]),
           ]),
         ]),
-tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid', style: { width: '100%', height: 'calc(100vh - 140px)', overflow: 'hidden' } }, [
-          h('iframe', {
-            src: '/shift-roster?token=' + encodeURIComponent(token),
-            style: { width: '100%', height: '100%', border: 'none', borderRadius: '12px' },
-          }),
+tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'card' }, [
+          h('div', { className: 'hero-header' }, [
+            h('div', null, [h('p', { className: 'eyebrow' }, 'Shift Roster'), h('h2', null, 'Monthly Shift Roster'), h('p', { className: 'muted' }, `Manage shifts for ${new Date(srYear, srMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}`)]),
+            h('div', { className: 'hero-meta', style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } }, [
+              h('label', { className: 'field compact-field' }, ['Month', h('select', { value: srMonth, onChange: (e) => setSrMonth(Number(e.target.value)) }, Array.from({ length: 12 }, (_, i) => h('option', { key: i, value: i }, new Date(2000, i).toLocaleString('default', { month: 'long' }))))]),
+              h('label', { className: 'field compact-field' }, ['Year', h('input', { type: 'number', value: srYear, onChange: (e) => setSrYear(Number(e.target.value) || new Date().getFullYear()), style: { width: '80px' } })]),
+              h('button', { className: 'btn primary small', onClick: async () => {
+                setSrLoading(true); setSrError('');
+                try {
+                  const data = await apiRequest('/api/shift-roster/assignments?month=' + (srMonth + 1) + '&year=' + srYear, token);
+                  const map = {};
+                  (Array.isArray(data) ? data : []).forEach(a => { if (a.employeeId && a.date) map[a.employeeId + '_' + a.date] = a.shiftId; });
+                  setSrAssignments(map);
+                  setMessage('Roster loaded');
+                } catch (err) { setSrError(err.error || 'Failed to load'); }
+                finally { setSrLoading(false); }
+              }, disabled: srLoading }, srLoading ? '⏳' : '🔄 Load'),
+            ]),
+          ]),
+          srError && h('div', { style: { padding: '8px 16px', background: '#fee', borderRadius: '8px', marginBottom: '8px', fontSize: '13px' } }, srError),
+          h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' } },
+            srShifts.map(s => h('span', { key: s.id, style: { padding: '4px 10px', borderRadius: '6px', background: s.color, color: '#fff', fontSize: '11px', fontWeight: 600 } }, s.name + ' (' + s.start + '-' + s.end + ')'))
+          ),
+          h('div', { style: { overflowX: 'auto', maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' } }, [
+            srLoading ? h('p', { className: 'muted' }, 'Loading...') :
+            employees.length === 0 ? h('p', { className: 'muted' }, 'No employees loaded') :
+            h('table', { style: { width: '100%', borderCollapse: 'collapse', fontSize: '11px' } }, [
+              h('thead', null, h('tr', { style: { background: 'var(--accent-soft)' } }, [
+                h('th', { style: { padding: '4px 6px', border: '1px solid var(--border)', textAlign: 'left', position: 'sticky', left: 0, background: 'var(--accent-soft)', zIndex: 1, minWidth: '120px' } }, 'Employee'),
+                ...Array.from({ length: new Date(srYear, srMonth + 1, 0).getDate() }, (_, i) => {
+                  const d = i + 1;
+                  return h('th', { key: d, style: { padding: '3px', border: '1px solid var(--border)', textAlign: 'center', minWidth: '28px', background: i === new Date().getDate()-1 && srMonth === new Date().getMonth() && srYear === new Date().getFullYear() ? '#e3f2fd' : 'var(--accent-soft)' } }, d);
+                }),
+              ])),
+              h('tbody', null, employees.filter(e => !companySearch || (e.name || '').toLowerCase().includes(companySearch.toLowerCase()) || (e.employeeId || '').toLowerCase().includes(companySearch.toLowerCase())).map(emp => {
+                const daysInMonth = new Date(srYear, srMonth + 1, 0).getDate();
+                return h('tr', { key: emp.id, style: { borderBottom: '1px solid var(--border)' } }, [
+                  h('td', { style: { padding: '3px 6px', border: '1px solid var(--border)', position: 'sticky', left: 0, background: '#fff', zIndex: 1, fontWeight: 500 } }, (emp.name || emp.employeeId || '?')),
+                  ...Array.from({ length: daysInMonth }, (_, i) => {
+                    const day = i + 1;
+                    const date = srYear + '-' + String(srMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                    const key = emp.employeeId + '_' + date;
+                    const shiftId = srAssignments[key];
+                    const shift = srShifts.find(s => s.id === shiftId);
+                    const isEditing = srEditing && srEditing.empId === emp.employeeId && srEditing.day === day;
+                    return h('td', { key: day, style: { padding: '2px', border: '1px solid var(--border)', textAlign: 'center', cursor: 'pointer', background: shift ? shift.color + '30' : 'transparent' }, onClick: () => !isEditing && setSrEditing({ empId: emp.employeeId, day, date, shiftId: shiftId || '' }) },
+                      isEditing
+                        ? h('select', { value: srEditing.shiftId || '', onChange: (e) => setSrEditing(prev => ({ ...prev, shiftId: e.target.value })), onBlur: () => { if (srEditing) { const k = emp.employeeId + '_' + date; setSrAssignments(prev => { const n = { ...prev }; if (srEditing.shiftId) n[k] = srEditing.shiftId; else delete n[k]; return n; }); } setSrEditing(null); }, style: { width: '100%', fontSize: '10px', padding: '1px' }, autoFocus: true }, [
+                            h('option', { value: '' }, '-'),
+                            ...srShifts.map(s => h('option', { key: s.id, value: s.id }, s.name.charAt(0))),
+                          ])
+                        : shift ? h('span', { style: { fontSize: '10px', fontWeight: 700, color: shift.color } }, shift.name.charAt(0)) : h('span', { style: { color: '#ccc' } }, '-')
+                    );
+                  }),
+                ]);
+              })),
+            ]),
+          ]),
+          h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' } }, [
+            h('button', { className: 'btn secondary small', onClick: () => { setSrAssignments({}); setSrError(''); } }, 'Clear'),
+            h('button', { className: 'btn primary small', onClick: async () => {
+              setSrSaving(true); setSrError('');
+              try {
+                const payload = [];
+                Object.entries(srAssignments).forEach(([key, shiftId]) => {
+                  const parts = key.split('_');
+                  payload.push({ employeeId: parts[0], date: parts.slice(1).join('_'), shiftId });
+                });
+                await apiRequest('/api/shift-roster/save', token, { method: 'POST', body: JSON.stringify({ assignments: payload }) });
+                setMessage('✅ Roster saved!');
+              } catch (err) { setSrError('Save failed: ' + (err.error || err.message)); }
+              finally { setSrSaving(false); }
+            }, disabled: srSaving }, srSaving ? '⏳' : '💾 Save'),
+          ]),
         ]),
 
         tab === 'attendance-editor' && canView('attendance-editor') && h('div', { className: 'card' }, [
