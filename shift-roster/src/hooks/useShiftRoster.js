@@ -2,6 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchEmployees, fetchAssignments, saveAssignment, saveRoster } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 
+function getTokenFromUrl() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken = urlParams.get('token');
+  if (urlToken) {
+    localStorage.setItem('reyadahToken', urlToken);
+    return urlToken;
+  }
+  return localStorage.getItem('reyadahToken') || '';
+}
+
 export function useShiftRoster() {
   const { addToast } = useToast();
   const [employees, setEmployees] = useState([]);
@@ -21,7 +31,7 @@ export function useShiftRoster() {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('reyadahToken');
+      const token = getTokenFromUrl();
       if (!token) {
         setError('Please log in to the HR portal first, then refresh this page.');
         setLoading(false);
@@ -84,7 +94,6 @@ export function useShiftRoster() {
         id: `ASSIGN${Date.now()}`,
         ...assignmentData,
       };
-      // Remove old assignment for same employee+date if exists
       setAssignments(prev => prev.filter(a => !(a.employeeId === employeeId && a.date === date)));
       setAssignments(prev => [...prev, newAssignment]);
       addToast('Shift assigned successfully', 'success');
