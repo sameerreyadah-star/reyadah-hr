@@ -2612,7 +2612,7 @@ function App() {
             h(NavButton, { label: 'Attendance', icon: 'AT', active: tab === 'attendance', onClick: () => setTab('attendance') }),
             canView('attendance-info') && h(NavButton, { label: 'Attendance Info', icon: 'AI', active: tab === 'attendance-info', onClick: () => setTab('attendance-info') }),
             canView('attendance-editor') && h(NavButton, { label: 'Manual Editor', icon: 'ME', active: tab === 'attendance-editor', onClick: () => setTab('attendance-editor') }),
-canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', active: tab === 'shift-roster', onClick: () => { window.open('/shift-roster?token=' + encodeURIComponent(token), '_blank'); } }),
+canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', active: tab === 'shift-roster', onClick: () => { setTab('shift-roster'); } }),
           ]),
         ]),
 
@@ -2986,48 +2986,11 @@ canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', act
             ]),
           ]),
         ]),
-        tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid' }, [
-          h('div', { className: 'card' }, [
-            h('div', { className: 'hero-header' }, [
-              h('div', null, [h('p', { className: 'eyebrow' }, 'Shift Roster'), h('h2', null, 'Monthly Shift Roster')]),
-              h('div', { className: 'hero-meta' }, [
-                h('label', { className: 'field' }, [
-                  'Year', h('input', { type: 'number', value: attendanceEditorYear, onChange: (e) => setAttendanceEditorYear(parseInt(e.target.value||new Date().getFullYear(),10)) })
-                ]),
-                h('label', { className: 'field' }, [
-                  'Month', h('input', { type: 'number', min:1, max:12, value: attendanceEditorMonth, onChange: (e) => setAttendanceEditorMonth(Math.min(12, Math.max(1, parseInt(e.target.value||1,10)))) })
-                ]),
-                h('button', { className: 'btn secondary', onClick: async () => await loadShiftRoster(attendanceEditorYear, attendanceEditorMonth) }, 'Load roster')
-              ])
-            ]),
-
-            h('div', { className: 'roster-table', style: { overflowX: 'auto' } }, [
-              h('table', { className: 'compact-roster' }, [
-                h('thead', null, h('tr', null, [
-                  h('th', null, 'Employee'),
-                  ...Array.from({ length: new Date(attendanceEditorYear, attendanceEditorMonth, 0).getDate() }).map((_,i) => h('th', { key: i }, String(i+1)))
-                ])),
-                h('tbody', null, (employees || []).map(emp => {
-                  const row = rosterMatrix[emp.employeeId] || [];
-                  return h('tr', { key: emp.employeeId }, [
-                    h('td', null, emp.name || emp.employeeId),
-                    ...Array.from({ length: new Date(attendanceEditorYear, attendanceEditorMonth, 0).getDate() }).map((_, idx) => {
-                      const d = idx + 1;
-                      const cell = row.find(c => c.day === d) || { day: d, shift: '' };
-                      return h('td', { key: idx, className: 'roster-cell' }, [
-                        h('input', { value: cell.shift || '', onChange: (e) => updateRosterCell(emp.employeeId, d, e.target.value), style: { width: 64 } })
-                      ]);
-                    })
-                  ]);
-                }))
-              ])
-            ]),
-
-            h('div', { className: 'form-actions' }, [
-              h('button', { className: 'btn primary', onClick: async () => await saveRosterChanges() }, 'Save roster'),
-              h('button', { className: 'btn secondary', onClick: async () => await loadShiftRoster(attendanceEditorYear, attendanceEditorMonth) }, 'Reload')
-            ])
-          ])
+tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid', style: { width: '100%', height: 'calc(100vh - 120px)', overflow: 'hidden' } }, [
+          h('iframe', {
+            src: '/shift-roster?token=' + encodeURIComponent(token),
+            style: { width: '100%', height: '100%', border: 'none', borderRadius: '12px' },
+          }),
         ]),
 
         tab === 'attendance-editor' && canView('attendance-editor') && h('div', { className: 'card' }, [
