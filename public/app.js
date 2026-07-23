@@ -764,6 +764,10 @@ function App() {
   const [srEditing, setSrEditing] = useState(null);
   const [srSaving, setSrSaving] = useState(false);
   const [srError, setSrError] = useState('');
+  const [srSearch, setSrSearch] = useState('');
+  const [srPageSize, setSrPageSize] = useState(10);
+  const [srCell, setSrCell] = useState(null);
+  const [srShowEditor, setSrShowEditor] = useState(false);
   const companyLogoSrc = `${COMPANY_LOGO_URL}?v=${companyLogoVersion}`;
 
   // Collapsible sidebar sections state
@@ -3001,12 +3005,16 @@ canView('shift-roster') && h(NavButton, { label: 'Shift Roster', icon: 'SR', act
           ]),
         ]),
 tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid' }, [
+  // Header with month/year controls
   h('div', { className: 'card' }, [
     h('div', { className: 'hero-header' }, [
-      h('div', null, [h('p', { className: 'eyebrow' }, 'Shift Roster'), h('h2', null, 'Monthly Shift Roster'), h('p', { className: 'muted' }, `Manage shifts for your team`)]),
+      h('div', null, [h('p', { className: 'eyebrow' }, 'Shift Roster'), h('h2', null, 'Monthly Shift Roster'), h('p', { className: 'muted' }, 'Assign and manage employee shifts for ' + new Date(srYear, srMonth).toLocaleString('default', { month: 'long', year: 'numeric' }))]),
       h('div', { className: 'hero-meta', style: { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' } }, [
+        h('button', { className: 'btn secondary small', onClick: () => { setSrMonth(prev => prev === 0 ? 11 : prev - 1); if (srMonth === 0) setSrYear(prev => prev - 1); } }, '◀'),
         h('label', { className: 'field compact-field' }, ['Month', h('select', { value: srMonth, onChange: (e) => setSrMonth(Number(e.target.value)) }, Array.from({ length: 12 }, (_, i) => h('option', { key: i, value: i }, new Date(2000, i).toLocaleString('default', { month: 'long' }))))]),
         h('label', { className: 'field compact-field' }, ['Year', h('input', { type: 'number', value: srYear, onChange: (e) => setSrYear(Number(e.target.value) || new Date().getFullYear()), style: { width: '80px' } })]),
+        h('button', { className: 'btn secondary small', onClick: () => { setSrMonth(prev => prev === 11 ? 0 : prev + 1); if (srMonth === 11) setSrYear(prev => prev + 1); } }, '▶'),
+        h('button', { className: 'btn secondary small', onClick: () => { setSrMonth(new Date().getMonth()); setSrYear(new Date().getFullYear()); } }, 'Today'),
         h('button', { className: 'btn primary small', onClick: async () => {
           setSrLoading(true); setSrError('');
           try {
@@ -3014,52 +3022,94 @@ tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid
             const map = {};
             (Array.isArray(data) ? data : []).forEach(a => { if (a.employeeId && a.date) map[a.employeeId + '_' + a.date] = a.shiftId; });
             setSrAssignments(map);
-            setMessage('Roster loaded - ' + Object.keys(map).length + ' assignments');
-          } catch (err) { setSrError('Could not load roster: ' + JSON.stringify(err)); }
+            setMessage('Loaded ' + Object.keys(map).length + ' assignments');
+          } catch (err) { setSrError('Failed to load: ' + (err.error || JSON.stringify(err))); }
           finally { setSrLoading(false); }
-        }, disabled: srLoading }, srLoading ? 'Loading...' : 'Load'),
+        }, disabled: srLoading }, srLoading ? '⏳' : '🔄 Load'),
+        h('button', { className: 'btn white small', onClick: () => { setSrSearch(''); } }, 'Clear'),
       ]),
     ]),
-    srError && h('div', { style: { margin: '8px 16px', padding: '10px', background: '#fee', borderRadius: '8px', border: '1px solid #fcc', fontSize: '13px', color: '#c33' } }, srError),
+    srError && h('div', { style: { margin: '0 16px 12px', padding: '10px 14px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca', fontSize: '13px', color: '#dc2626' } }, srError),
   ]),
-  h('div', { className: 'card', style: { padding: '12px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' } }, [
-    h('strong', { style: { fontSize: '12px' } }, 'Shifts:'),
-    ...srShifts.map(s => h('span', { key: s.id, style: { padding: '4px 10px', borderRadius: '6px', background: s.color, color: '#fff', fontSize: '11px', fontWeight: 600 } }, s.name + ' (' + s.start + '-' + s.end + ')')),
+  // Summary stats
+  h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' } },
+    (function() {
+      const total = employees.length;
+      const monthStr = srYear + '-' + String(srMonth + 1).padStart(2, '0');
+      const monthAssigns = Object.entries(srAssignments).filter(([k]) => k.includes(monthStr));
+      const assignedSet = new Set(monthAssigns.map(([k]) => k.split('_')[0]));
+      const morning = monthAssigns.filter(([,v]) => { const s = srShifts.find(x => x.id === v); return s && s.name.toLowerCase().includes('morning'); }).length;
+      const evening = monthAssigns.filter(([,v]) => { const s = srShifts.find(x => x.id === v); return s && s.name.toLowerCase().includes('evening'); }).length;
+      const night = monthAssigns.filter(([,v]) => { const s = srShifts.find(x => x.id === v); return s && s.name.toLowerCase().includes('night'); }).length;
+      return [
+        h('div', { key:'t', style: { padding: '12px', background: 'var(--accent-soft)', borderRadius: '8px', textAlign: 'center' } }, [h('strong', { style: { fontSize: '20px', display: 'block' } }, total), h('span', { className: 'muted', style: { fontSize: '11px' } }, 'Total')]),
+        h('div', { key:'a', style: { padding: '12px', background: '#e8f5e9', borderRadius: '8px', textAlign: 'center' } }, [h('strong', { style: { fontSize: '20px', color: '#2e7d32', display: 'block' } }, assignedSet.size), h('span', { style: { fontSize: '11px', color: '#2e7d32' } }, 'Assigned')]),
+        h('div', { key:'u', style: { padding: '12px', background: '#fff3e0', borderRadius: '8px', textAlign: 'center' } }, [h('strong', { style: { fontSize: '20px', color: '#e65100', display: 'block' } }, total - assignedSet.size), h('span', { style: { fontSize: '11px', color: '#e65100' } }, 'Unassigned')]),
+        h('div', { key:'m', style: { padding: '12px', background: '#e3f2fd', borderRadius: '8px', textAlign: 'center' } }, [h('strong', { style: { fontSize: '20px', color: '#1565c0', display: 'block' } }, morning), h('span', { style: { fontSize: '11px', color: '#1565c0' } }, 'Morning')]),
+        h('div', { key:'e', style: { padding: '12px', background: '#f3e5f5', borderRadius: '8px', textAlign: 'center' } }, [h('strong', { style: { fontSize: '20px', color: '#7b1fa2', display: 'block' } }, evening), h('span', { style: { fontSize: '11px', color: '#7b1fa2' } }, 'Evening')]),
+        h('div', { key:'n', style: { padding: '12px', background: '#e0e0e0', borderRadius: '8px', textAlign: 'center' } }, [h('strong', { style: { fontSize: '20px', color: '#424242', display: 'block' } }, night), h('span', { style: { fontSize: '11px', color: '#424242' } }, 'Night')]),
+      ];
+    })()
+  ),
+  // Search bar
+  h('div', { className: 'card', style: { padding: '10px 16px', display: 'flex', gap: '10px', alignItems: 'center' } }, [
+    h('input', { type: 'text', value: srSearch, onChange: (e) => setSrSearch(e.target.value), placeholder: 'Search employees by name, ID...', style: { flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px' } }),
+    h('strong', { style: { fontSize: '12px', color: 'var(--text-muted)' } }, employees.filter(e => !srSearch || (e.name||'').toLowerCase().includes(srSearch.toLowerCase()) || (e.employeeId||'').toLowerCase().includes(srSearch.toLowerCase())).length + '/' + employees.length),
   ]),
-  h('div', { className: 'card', style: { overflowX: 'auto', padding: '8px' } }, [
+  // Shift legend bar
+  h('div', { className: 'card', style: { padding: '8px 14px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' } }, [
+    h('strong', { style: { fontSize: '11px', color: 'var(--text-muted)' } }, 'Shifts:'),
+    ...srShifts.map(s => h('span', { key: s.id, style: { padding: '3px 8px', borderRadius: '4px', background: s.color, color: '#fff', fontSize: '10px', fontWeight: 600 } }, s.name + ' (' + s.start + '-' + s.end + ')')),
+  ]),
+  // Roster table
+  h('div', { className: 'card', style: { overflowX: 'auto', padding: '0', maxHeight: 'calc(100vh - 340px)', overflowY: 'auto' } }, [
     employees.length === 0
-      ? h('p', { className: 'muted' }, 'No employees loaded. Go to the home page to load employees first.')
+      ? h('p', { className: 'muted', style: { padding: '20px', textAlign: 'center' } }, 'No employees loaded yet.')
       : h('table', { style: { width: '100%', borderCollapse: 'collapse', fontSize: '11px' } }, [
-          h('thead', null, h('tr', { style: { background: 'var(--accent-soft)' } }, [
-            h('th', { style: { padding: '4px 6px', border: '1px solid var(--border)', textAlign: 'left', position: 'sticky', left: 0, background: 'var(--accent-soft)', zIndex: 1, minWidth: '120px' } }, 'Employee'),
-            ...Array.from({ length: new Date(srYear, srMonth + 1, 0).getDate() }, (_, i) => { const d = i + 1; return h('th', { key: d, style: { padding: '3px', border: '1px solid var(--border)', textAlign: 'center', minWidth: '28px', background: i === new Date().getDate()-1 && srMonth === new Date().getMonth() && srYear === new Date().getFullYear() ? '#e3f2fd' : 'var(--accent-soft)' } }, d); }),
+          h('thead', null, h('tr', { style: { background: 'var(--accent-soft)', position: 'sticky', top: 0, zIndex: 2 } }, [
+            h('th', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'left', position: 'sticky', left: 0, background: 'var(--accent-soft)', zIndex: 3, minWidth: '130px' } }, 'Employee'),
+            ...Array.from({ length: new Date(srYear, srMonth + 1, 0).getDate() }, (_, i) => {
+              const d = i + 1;
+              const dt = new Date(srYear, srMonth, d);
+              const isToday = dt.toDateString() === new Date().toDateString();
+              const isWeekend = dt.getDay() === 5 || dt.getDay() === 6;
+              return h('th', { key: d, style: { padding: '3px 2px', border: '1px solid var(--border)', textAlign: 'center', minWidth: '30px', background: isToday ? '#e3f2fd' : isWeekend ? '#f5f5f5' : 'var(--accent-soft)', fontWeight: isToday ? 700 : 600, fontSize: '10px' } }, [d, h('br', null), h('span', { style: { fontWeight: 400, fontSize: '8px', color: isToday ? '#1976d2' : 'var(--text-muted)' } }, dt.toLocaleDateString('en', { weekday: 'short' }))]);
+            }),
           ])),
-          h('tbody', null, employees.map(emp => {
-            const daysInMonth = new Date(srYear, srMonth + 1, 0).getDate();
-            return h('tr', { key: emp.id, style: { borderBottom: '1px solid var(--border)' } }, [
-              h('td', { style: { padding: '3px 6px', border: '1px solid var(--border)', position: 'sticky', left: 0, background: '#fff', zIndex: 1, fontWeight: 500 } }, (emp.name || emp.employeeId || '?')),
-              ...Array.from({ length: daysInMonth }, (_, i) => {
-                const day = i + 1;
-                const date = srYear + '-' + String(srMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-                const key = emp.employeeId + '_' + date;
-                const shiftId = srAssignments[key];
-                const shift = srShifts.find(s => s.id === shiftId);
-                const isEditing = srEditing && srEditing.empId === emp.employeeId && srEditing.day === day;
-                return h('td', { key: day, style: { padding: '2px', border: '1px solid var(--border)', textAlign: 'center', cursor: 'pointer', background: shift ? shift.color + '30' : 'transparent' }, onClick: () => !isEditing && setSrEditing({ empId: emp.employeeId, day, date, shiftId: shiftId || '' }) },
-                  isEditing
-                    ? h('select', { value: srEditing.shiftId || '', onChange: (e) => setSrEditing(prev => ({ ...prev, shiftId: e.target.value })), onBlur: () => { if (srEditing) { const k = emp.employeeId + '_' + date; setSrAssignments(prev => { const n = { ...prev }; if (srEditing.shiftId) n[k] = srEditing.shiftId; else delete n[k]; return n; }); } setSrEditing(null); }, style: { width: '100%', fontSize: '10px', padding: '1px' }, autoFocus: true }, [
-                      h('option', { value: '' }, '-'),
-                      ...srShifts.map(s => h('option', { key: s.id, value: s.id }, s.name.charAt(0))),
-                    ])
-                    : shift ? h('span', { style: { fontSize: '10px', fontWeight: 700, color: shift.color } }, shift.name.charAt(0)) : h('span', { style: { color: '#ccc' } }, '-')
-                );
-              }),
-            ]);
-          })),
+          h('tbody', null,
+            employees.filter(e => !srSearch || (e.name||'').toLowerCase().includes(srSearch.toLowerCase()) || (e.employeeId||'').toLowerCase().includes(srSearch.toLowerCase())).slice(0, srPageSize).map(emp => {
+              const daysInMonth = new Date(srYear, srMonth + 1, 0).getDate();
+              return h('tr', { key: emp.id, style: { borderBottom: '1px solid var(--border)' } }, [
+                h('td', { style: { padding: '4px 8px', border: '1px solid var(--border)', position: 'sticky', left: 0, background: '#fff', zIndex: 1, fontWeight: 500, fontSize: '12px' } }, [h('span', null, emp.name || emp.employeeId || '?'), h('span', { style: { color: 'var(--text-muted)', fontSize: '10px', marginLeft: '4px' } }, emp.employeeId)]),
+                ...Array.from({ length: daysInMonth }, (_, i) => {
+                  const day = i + 1;
+                  const dt = new Date(srYear, srMonth, day);
+                  const isWeekend = dt.getDay() === 5 || dt.getDay() === 6;
+                  const isToday = dt.toDateString() === new Date().toDateString();
+                  const dateStr = srYear + '-' + String(srMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                  const key = emp.employeeId + '_' + dateStr;
+                  const shiftId = srAssignments[key];
+                  const shift = srShifts.find(s => s.id === shiftId);
+                  return h('td', { key: day, style: { padding: '3px 2px', border: '1px solid var(--border)', textAlign: 'center', cursor: 'pointer', background: shift ? shift.color + '25' : isWeekend && !shift ? '#fafafa' : 'transparent', outline: isToday ? '2px solid #2196f3' : 'none', outlineOffset: '-2px' }, onClick: () => { setSrCell({ empId: emp.employeeId, empName: emp.name, day, date: dateStr, shiftId: shiftId || '' }); setSrShowEditor(true); } },
+                    shift ? h('span', { style: { fontSize: '10px', fontWeight: 700, color: shift.color, display: 'block', padding: '2px 0' } }, shift.name.charAt(0)) : (isWeekend ? h('span', { style: { fontSize: '8px', color: '#ccc' } }, 'OFF') : h('span', { style: { fontSize: '8px', color: '#ddd' } }, '-'))
+                  );
+                }),
+              ]);
+            })
+          ),
         ]),
   ]),
-  h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', padding: '12px' } }, [
-    h('button', { className: 'btn secondary small', onClick: () => { setSrAssignments({}); setSrError(''); } }, 'Clear'),
+  // Pagination
+  employees.length > srPageSize && h('div', { style: { display: 'flex', justifyContent: 'center', gap: '4px', padding: '8px' } },
+    (function() {
+      const filtered = employees.filter(e => !srSearch || (e.name||'').toLowerCase().includes(srSearch.toLowerCase()) || (e.employeeId||'').toLowerCase().includes(srSearch.toLowerCase()));
+      const pages = Math.ceil(filtered.length / srPageSize);
+      return Array.from({ length: pages }, (_, i) => h('button', { key: i, className: i === 0 ? 'btn primary small' : 'btn white small', onClick: () => { setSrPageSize(prev => (i + 1) * 10); } }, i + 1));
+    })()
+  ),
+  // Action buttons
+  h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', padding: '12px 0' } }, [
+    h('button', { className: 'btn secondary small', onClick: () => { setSrAssignments({}); setSrError(''); setMessage('All assignments cleared'); } }, 'Clear All'),
     h('button', { className: 'btn primary small', onClick: async () => {
       setSrSaving(true); setSrError('');
       try {
@@ -3069,11 +3119,37 @@ tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid
           payload.push({ employeeId: parts[0], date: parts.slice(1).join('_'), shiftId });
         });
         await apiRequest('/api/shift-roster/save', token, { method: 'POST', body: JSON.stringify({ assignments: payload }) });
-        setMessage('Roster saved successfully');
-      } catch (err) { setSrError('Save failed: ' + JSON.stringify(err)); }
+        setMessage('Roster saved - ' + payload.length + ' assignments');
+      } catch (err) { setSrError('Save failed: ' + (err.error || JSON.stringify(err))); }
       finally { setSrSaving(false); }
-    }, disabled: srSaving }, srSaving ? 'Saving...' : 'Save'),
+    }, disabled: srSaving }, srSaving ? 'Saving...' : '💾 Save Roster'),
   ]),
+  // Shift Editor Modal
+  srShowEditor && srCell && h('div', { style: { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }, onClick: () => setSrShowEditor(false) },
+    h('div', { style: { background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '440px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }, onClick: e => e.stopPropagation() }, [
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' } }, [
+        h('div', null, [
+          h('h3', { style: { margin: 0, fontSize: '18px', fontWeight: 700 } }, 'Assign Shift'),
+          h('p', { style: { margin: '4px 0 0', fontSize: '13px', color: 'var(--text-muted)' } }, srCell.empName + ' · ' + srCell.date),
+        ]),
+        h('button', { style: { background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#999' }, onClick: () => setSrShowEditor(false) }, '✕'),
+      ]),
+      h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' } },
+        [h('button', { key: 'none', style: { padding: '8px 16px', borderRadius: '8px', border: '2px solid ' + (!srCell.shiftId ? '#1976d2' : '#e0e0e0'), background: !srCell.shiftId ? '#e3f2fd' : '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 600 } }, 'No Shift')].concat(
+          srShifts.map(s => h('button', { key: s.id, style: { padding: '8px 16px', borderRadius: '8px', border: '2px solid ' + (srCell.shiftId === s.id ? s.color : '#e0e0e0'), background: srCell.shiftId === s.id ? s.color + '20' : '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: s.color }, onClick: () => setSrCell(prev => ({ ...prev, shiftId: prev.shiftId === s.id ? '' : s.id })) }, s.name + ' (' + s.start + '-' + s.end + ')'))
+        )
+      ),
+      h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } }, [
+        h('button', { className: 'btn secondary small', onClick: () => setSrShowEditor(false) }, 'Cancel'),
+        h('button', { className: 'btn primary small', onClick: () => {
+          const k = srCell.empId + '_' + srCell.date;
+          setSrAssignments(prev => { const n = { ...prev }; if (srCell.shiftId) n[k] = srCell.shiftId; else delete n[k]; return n; });
+          setSrShowEditor(false);
+          setMessage(srCell.shiftId ? 'Shift assigned' : 'Shift removed');
+        }}, srCell.shiftId ? '✅ Assign' : '❌ Remove'),
+      ]),
+    ])
+  ),
 ]),
 
         tab === 'attendance-editor' && canView('attendance-editor') && h('div', { className: 'card' }, [
