@@ -5592,7 +5592,7 @@ tab === 'shift-roster' && canView('shift-roster') && h('div', { className: 'grid
         ]),
         tab === 'admin' && user.role === 'admin' && h('div', { className: 'admin-shell' }, [
           h('div', { className: 'admin-toolbar' }, [
-            ['team', 'bulkUpload', 'leaveBalances', 'employeeLeave', 'applyLeave', 'faceRegister', 'assignAsset', 'assignShift', 'tickets', 'zkteco', 'biometric', 'reports', 'holidays', 'departments', 'auditLog', 'eos'].map((page) => h('button', {
+['team', 'workTimings', 'bulkUpload', 'leaveBalances', 'employeeLeave', 'applyLeave', 'faceRegister', 'assignAsset', 'assignShift', 'tickets', 'zkteco', 'biometric', 'reports', 'holidays', 'departments', 'auditLog', 'eos'].map((page) => h('button', {
               key: page,
               className: adminPage === page ? 'btn primary small' : 'btn secondary small',
               onClick: () => setAdminPage(page),
