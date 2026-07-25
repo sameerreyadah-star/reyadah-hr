@@ -22,7 +22,8 @@ const eosRoutes = require('./routes/eos');
 const employeesManagementRoutes = require('./routes/employeesManagement');
 const workTimingRoutes = require('./routes/workTiming');
 const biometricIntegrationRoutes = require('./routes/biometricIntegration');
-const shiftRosterRoutes = require('./routes/shiftRoster');
+const shiftRosterRoutes = require\('./routes/shiftRoster');
+const roleRoutes = require('./routes/roles');
 
 const syncService = require('./services/syncService');
 const zktecoService = require('./services/zktecoService');
@@ -140,6 +141,7 @@ app.use('/api/employees-management', employeesManagementRoutes);
 app.use('/api/work-timings', workTimingRoutes);
 app.use('/api/biometric', biometricIntegrationRoutes);
 app.use('/api/shift-roster', shiftRosterRoutes);
+app.use('/api/roles', roleRoutes);
 
 // error handling
 app.use((err, req, res, next) => {
@@ -253,3 +255,4 @@ start().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
+
