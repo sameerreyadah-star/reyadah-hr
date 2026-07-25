@@ -750,7 +750,27 @@ function App() {
   });
   const [testBusy, setTestBusy] = useState(false);
   const [testResult, setTestResult] = useState(null);
-  // Shift Roster inline state
+
+  const [wtSearch, setWtSearch] = useState('');
+  const [selectedEmp, setSelectedEmp] = useState(null);
+  const [wtDays, setWtDays] = useState([]);
+  const [wtLoading, setWtLoading] = useState(false);
+  const [wtError, setWtError] = useState('');
+  const [wtDate, setWtDate] = useState(new Date());
+  const [wtYear, setWtYear] = useState(new Date().getFullYear());
+  const [wtMonth, setWtMonth] = useState(new Date().getMonth() + 1);
+  const [wtEditDay, setWtEditDay] = useState(null);
+  const [wtEditClockIn, setWtEditClockIn] = useState('');
+  const [wtEditClockOut, setWtEditClockOut] = useState('');
+  const loadWtAttendance = async (emp, year, month) => {
+    if (!emp) return;
+    setWtLoading(true); setWtError('');
+    try {
+      const data = await apiRequest('/api/attendance/employee/' + emp.employeeId + '/month/' + year + '/' + month, token);
+      setWtDays(data.days || []);
+    } catch (err) { setWtError(err.error || 'Failed'); setWtDays([]); }
+    finally { setWtLoading(false); }
+  };  // Shift Roster inline state
   const [srShifts, setSrShifts] = useState([
     { id: 'MORN', name: 'Morning', start: '06:00', end: '14:00', color: '#3B82F6' },
     { id: 'EVEN', name: 'Evening', start: '14:00', end: '22:00', color: '#8B5CF6' },
