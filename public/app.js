@@ -6841,6 +6841,105 @@ adminPage === 'assignShift' && h('div', { className: 'card' }, [
               ]),
             ]),
 
+            adminPage === 'workTimings' && h('div', { className: 'grid' }, [
+  h('div', { className: 'card' }, [
+    h('div', { className: 'panel-heading' }, [
+      h('div', null, [
+        h('p', { className: 'eyebrow' }, 'Attendance Correction'),
+        h('h2', null, 'Employee Attendance Manager'),
+        h('p', { className: 'muted' }, 'Search employees, view day-wise attendance, and correct check-in/check-out times.')
+      ]),
+      h('div', { className: 'directory-controls' }, [
+        h('input', { value: wtSearch, onChange: (e) => setWtSearch(e.target.value), placeholder: 'Search by ID or name...', style: { padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)' } }),
+        h('span', { className: 'muted', style: { fontSize: '12px' } }, employees.filter(e => !wtSearch || (e.name||'').toLowerCase().includes(wtSearch.toLowerCase()) || (e.employeeId||'').toLowerCase().includes(wtSearch.toLowerCase())).length + '/' + employees.length)
+      ])
+    ])
+  ]),
+  h('div', { className: 'grid', style: { gap: '8px', maxHeight: '300px', overflowY: 'auto' } },
+    employees.filter(e => !wtSearch || (e.name||'').toLowerCase().includes(wtSearch.toLowerCase()) || (e.employeeId||'').toLowerCase().includes(wtSearch.toLowerCase())).slice(0, 20).map(emp => h('div', {
+      key: emp.id,
+      className: 'card',
+      style: { padding: '10px 14px', cursor: 'pointer', border: (selectedEmp && selectedEmp.employeeId === emp.employeeId ? '2px solid #1976d2' : '1px solid var(--border)'), background: (selectedEmp && selectedEmp.employeeId === emp.employeeId ? '#e3f2fd' : '') },
+      onClick: async () => {
+        setSelectedEmp(emp);
+        setWtLoading(true); setWtError('');
+        try {
+          const data = await apiRequest('/api/attendance/employee/' + emp.employeeId + '/month/' + wtYear + '/' + wtMonth, token);
+          setWtDays(data.days || []);
+          setWtDate(new Date(data.year || wtYear, (data.month || wtMonth) - 1));
+        } catch (err) { setWtError(err.error || 'Failed'); setWtDays([]); }
+        finally { setWtLoading(false); }
+      }
+    }, [
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } }, [
+        emp.photoUrl ? h('img', { src: emp.photoUrl, style: { width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' } }) : h('div', { style: { width: '36px', height: '36px', borderRadius: '50%', background: '#e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700 } }, (emp.name || '?')[0]),
+        h('div', null, [h('strong', { style: { fontSize: '13px' } }, emp.name || 'Unnamed'), h('p', { style: { fontSize: '11px', color: '#666' } }, emp.employeeId + ' · ' + (emp.designation || '—'))])
+      ])
+    ]))
+  ),
+  selectedEmp && h('div', { className: 'card' }, [
+    h('div', { className: 'hero-header' }, [
+      h('div', null, [h('p', { className: 'eyebrow' }, selectedEmp.name), h('h2', null, 'Attendance - ' + (wtDate ? wtDate.toLocaleString('default', { month: 'long', year: 'numeric' }) : ''))]),
+      h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center' } }, [
+        h('button', { className: 'btn secondary small', onClick: () => { const d = new Date(wtDate.getFullYear(), wtDate.getMonth() - 1, 1); setWtDate(d); setWtYear(d.getFullYear()); setWtMonth(d.getMonth() + 1); loadWtAttendance(selectedEmp, d.getFullYear(), d.getMonth() + 1); } }, '◀'),
+        h('span', { style: { fontSize: '12px', fontWeight: 600 } }, wtDate ? wtDate.toLocaleString('default', { month: 'short', year: 'numeric' }) : ''),
+        h('button', { className: 'btn secondary small', onClick: () => { const d = new Date(wtDate.getFullYear(), wtDate.getMonth() + 1, 1); setWtDate(d); setWtYear(d.getFullYear()); setWtMonth(d.getMonth() + 1); loadWtAttendance(selectedEmp, d.getFullYear(), d.getMonth() + 1); } }, '▶'),
+      ])
+    ]),
+    wtError && h('div', { style: { padding: '8px 14px', background: '#fef2f2', borderRadius: '8px', color: '#dc2626', fontSize: '13px', marginBottom: '8px' } }, wtError),
+    wtLoading ? h('p', { className: 'muted' }, 'Loading...') :
+    h('div', { style: { overflowX: 'auto' } }, [
+      h('table', { style: { width: '100%', borderCollapse: 'collapse', fontSize: '11px' } }, [
+        h('thead', null, h('tr', { style: { background: 'var(--accent-soft)' } }, [
+          h('th', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'left', minWidth: '50px' } }, 'Day'),
+          h('th', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center', minWidth: '60px' } }, 'Date'),
+          h('th', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center', minWidth: '60px' } }, 'Status'),
+          h('th', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center', minWidth: '80px' } }, 'Clock In'),
+          h('th', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center', minWidth: '80px' } }, 'Clock Out'),
+          h('th', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center', minWidth: '100px' } }, 'Action'),
+        ])),
+        h('tbody', null, wtDays.length === 0 ? h('tr', null, h('td', { colSpan: 6, style: { textAlign: 'center', padding: '20px', color: '#999' } }, 'No attendance records')) : wtDays.map((day, idx) => {
+          const dateStr = (wtYear || wtDate.getFullYear()) + '-' + String(wtMonth || (wtDate.getMonth() + 1)).padStart(2, '0') + '-' + String(day.day || (idx + 1)).padStart(2, '0');
+          const clockInTime = day.clockIn ? new Date(day.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+          const clockOutTime = day.clockOut ? new Date(day.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+          const isEditing = wtEditDay === (day.day || (idx + 1));
+          return h('tr', { key: day.id || idx, style: { borderBottom: '1px solid var(--border)' } }, [
+            h('td', { style: { padding: '6px 8px', border: '1px solid var(--border)', fontWeight: 600 } }, String(day.day || (idx + 1))),
+            h('td', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center' } }, dateStr),
+            h('td', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center' } }, h('span', { className: 'attendance-status-chip ' + (day.status === 'p' ? 'present' : day.status === 'a' ? 'absent' : day.status === 'o' ? 'holiday' : 'not-marked') }, (day.status || 'NS').toUpperCase())),
+            isEditing ? h('td', { style: { padding: '4px 6px', border: '1px solid var(--border)', textAlign: 'center' } }, h('input', { type: 'time', value: wtEditClockIn || '', onChange: (e) => setWtEditClockIn(e.target.value), style: { width: '85px', padding: '3px', fontSize: '11px' } })) : h('td', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center' } }, clockInTime),
+            isEditing ? h('td', { style: { padding: '4px 6px', border: '1px solid var(--border)', textAlign: 'center' } }, h('input', { type: 'time', value: wtEditClockOut || '', onChange: (e) => setWtEditClockOut(e.target.value), style: { width: '85px', padding: '3px', fontSize: '11px' } })) : h('td', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center' } }, clockOutTime),
+            h('td', { style: { padding: '6px 8px', border: '1px solid var(--border)', textAlign: 'center' } },
+              isEditing
+                ? h('div', { style: { display: 'flex', gap: '4px', justifyContent: 'center' } }, [
+                    h('button', { className: 'btn primary small', onClick: async () => {
+                      try {
+                        const payload = {};
+                        if (wtEditClockIn) payload.clockIn = dateStr + 'T' + wtEditClockIn + ':00';
+                        if (wtEditClockOut) payload.clockOut = dateStr + 'T' + wtEditClockOut + ':00';
+                        if (day.id) await apiRequest('/api/attendance/' + day.id, token, { method: 'PUT', body: JSON.stringify(payload) });
+                        else await apiRequest('/api/attendance', token, { method: 'POST', body: JSON.stringify({ employeeId: selectedEmp.employeeId, date: dateStr, ...payload }) });
+                        setMessage('Saved!'); setWtEditDay(null);
+                        const data = await apiRequest('/api/attendance/employee/' + selectedEmp.employeeId + '/month/' + (wtYear || wtDate.getFullYear()) + '/' + (wtMonth || (wtDate.getMonth() + 1)), token);
+                        setWtDays(data.days || []);
+                      } catch (err) { setWtError(err.error || 'Failed'); }
+                    } }, 'Save'),
+                    h('button', { className: 'btn secondary small', onClick: () => { setWtEditDay(null); setWtEditClockIn(''); setWtEditClockOut(''); } }, 'Cancel')
+                  ])
+                : h('button', { className: 'btn white small', onClick: () => {
+                    setWtEditDay(day.day || (idx + 1));
+                    setWtEditClockIn(day.clockIn ? new Date(day.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
+                    setWtEditClockOut(day.clockOut ? new Date(day.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
+                  } }, (day.clockIn || day.clockOut) ? 'Edit' : 'Add')
+            )
+          ]);
+        }))
+      ])
+    ])
+  ]),
+]),
+
+
             adminPage === 'holidays' && h('div', { className: 'card admin-section-card' }, [
               h('div', { className: 'panel-heading' }, [
                 h('div', null, [
