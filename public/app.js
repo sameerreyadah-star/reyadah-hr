@@ -2511,6 +2511,7 @@ function App() {
     holidays: 'Holidays',
     departments: 'Departments',
     auditLog: 'Audit Log',
+    workTimings: 'Attendance Correction'
     eos: 'End of Service',
   };
   const payrollDisplayRecords = isPayrollManager(user.role) ? teamPayslips : payslips;
