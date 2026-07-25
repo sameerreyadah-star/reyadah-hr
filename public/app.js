@@ -2511,7 +2511,7 @@ function App() {
     holidays: 'Holidays',
     departments: 'Departments',
     auditLog: 'Audit Log',
-    workTimings: 'Attendance Correction'
+    workTimings: 'Attendance Correction',
     eos: 'End of Service',
   };
   const payrollDisplayRecords = isPayrollManager(user.role) ? teamPayslips : payslips;
@@ -7835,3 +7835,4 @@ adminPage === 'assignShift' && h('div', { className: 'card' }, [
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+
