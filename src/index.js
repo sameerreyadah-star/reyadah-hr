@@ -22,7 +22,7 @@ const eosRoutes = require('./routes/eos');
 const employeesManagementRoutes = require('./routes/employeesManagement');
 const workTimingRoutes = require('./routes/workTiming');
 const biometricIntegrationRoutes = require('./routes/biometricIntegration');
-const shiftRosterRoutes = require\('./routes/shiftRoster');
+const shiftRosterRoutes = require('./routes/shiftRoster');
 const roleRoutes = require('./routes/roles');
 
 const syncService = require('./services/syncService');
