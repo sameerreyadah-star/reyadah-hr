@@ -24,6 +24,7 @@ module.exports = (sequelize) => {
     education: { type: DataTypes.JSON, defaultValue: [] },        // [{degree, institution, year, grade}]
     visaInfo: { type: DataTypes.JSON, defaultValue: {} },         // {passportNo, passportExpiry, visaExpiry, emiratesId}
     contractInfo: { type: DataTypes.JSON, defaultValue: {} },     // {startDate, probationEnd, contractEnd, contractType}
+    outlet: { type: DataTypes.STRING },
     department: { type: DataTypes.STRING },
     phone: { type: DataTypes.STRING },
     nationality: { type: DataTypes.STRING },
