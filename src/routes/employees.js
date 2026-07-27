@@ -19,7 +19,7 @@ if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
 const TEAM_VIEW_ROLES = ['admin', 'restaurant-manager', 'company-manager'];
 
 function canViewTeam(role) {
-  return TEAM_VIEW_ROLES.includes(role);
+  return TEAM_VIEW_ROLES.includes(role) || (role && role !== 'employee');
 }
 
 function canViewEmployee(user, employee) {
