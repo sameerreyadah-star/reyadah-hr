@@ -24,6 +24,7 @@ const workTimingRoutes = require('./routes/workTiming');
 const biometricIntegrationRoutes = require('./routes/biometricIntegration');
 const shiftRosterRoutes = require('./routes/shiftRoster');
 const roleRoutes = require('./routes/roles');
+const outletManagementRoutes = require('./routes/outletManagement');
 const outletRoutes = require('./routes/outlets');
 
 const syncService = require('./services/syncService');
@@ -143,6 +144,7 @@ app.use('/api/work-timings', workTimingRoutes);
 app.use('/api/biometric', biometricIntegrationRoutes);
 app.use('/api/shift-roster', shiftRosterRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api/outlet-management', outletManagementRoutes);
 app.use('/api/outlets', outletRoutes);
 
 // error handling
